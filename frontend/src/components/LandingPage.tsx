@@ -159,6 +159,8 @@ function WalletConnectButton() {
 
 // Navbar
 function Navbar() {
+  const account = useActiveAccount();
+
   return (
     <nav className="fixed top-0 left-0 w-full z-50 bg-dark/80 backdrop-blur border-b border-dark/60">
       <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
@@ -178,6 +180,14 @@ function Navbar() {
           >
             Explore
           </a>
+          {account && (
+            <a
+              href="/dashboard"
+              className="text-gray-100 hover:underline underline-offset-8 transition"
+            >
+              Dashboard
+            </a>
+          )}
           <div className="ml-4">
             <WalletConnectButton />
           </div>
@@ -189,7 +199,7 @@ function Navbar() {
 
 // Hero Section
 function HeroSection() {
-  const words = ["Yourself", "Your Faves", "The Best"];
+  const words = ["Believe in Yourself? Then..", "Bet on Yourself, that's the Ethos"];
   const [index, setIndex] = useState(0);
   useEffect(() => {
     const interval = setInterval(() => {
@@ -207,7 +217,7 @@ function HeroSection() {
     >
       <h1 className="text-accent font-extrabold text-4xl md:text-6xl drop-shadow-lg mb-6">
         <span className="inline-flex items-center">
-          Bet on{" "}
+          {" "}
           <span className="inline-block relative min-w-[7ch] ml-2">
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
@@ -251,12 +261,8 @@ const steps = [
     desc: "Set your goal, deadline, and proof requirements.",
   },
   {
-    title: "Stake ETH & Publish",
-    desc: "Lock your ETH and make your challenge public.",
-  },
-  {
-    title: "Others Bet",
-    desc: "Friends and strangers bet on your success or failure.",
+    title: "Stake & Publish",
+    desc: "Lock your ETH or USDC and make your challenge public.",
   },
   {
     title: "Complete & Earn",
@@ -269,7 +275,7 @@ function HowItWorks() {
       <h2 className="text-accent text-3xl md:text-4xl font-bold text-center mb-12">
         How It Works
       </h2>
-      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 place-items-center">
         {steps.map((step, i) => (
           <motion.div
             key={i}
