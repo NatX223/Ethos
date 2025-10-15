@@ -15,3 +15,8 @@ node_modules
 
 # Hardhat Ignition default folder for deployments against a local node
 ignition/deployments/chain-31337
+
+/ignition/modules
+/test/Lock.js
+/contracts/Lock.sol
+package-lock.json

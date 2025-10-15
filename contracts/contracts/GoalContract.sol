@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 interface IRewardManager {
     function updateWeeklyWinnerCount(address _user, uint256 _week) external;
+    function updateWeeklyReward(uint256 _week, uint256 _newAmount) external;
 }
 
 contract Goal is ReentrancyGuard {
@@ -22,7 +23,11 @@ contract Goal is ReentrancyGuard {
     // Events
     event GoalInitialized(address indexed author, uint256 deadline, uint256 amount);
     event Settled(address indexed author, uint256 indexed score, uint256 indexed target, uint256 userShare, uint256 remainder);
-    
+    event Received(
+        address indexed origin,
+        address indexed sender,
+        uint256 indexed value
+    );
     // Modifiers
     modifier onlySettler() {
         require(msg.sender == settler, "Only settler can call this");
@@ -68,7 +73,7 @@ contract Goal is ReentrancyGuard {
     }
 
     function settleGoal(uint256 score) external onlySettler afterDeadline notSettled {
-        isSettled = true; // prevent re-entry
+        isSettled = true;
         uint256 userShare;
         uint256 remainder;
         uint256 balance = address(this).balance;
@@ -93,10 +98,18 @@ contract Goal is ReentrancyGuard {
             if (remainder > 0) {
                 (bool successReward, ) = payable(rewardManager).call{value: remainder}("");
                 require(successReward, "Reward transfer failed");
+                IRewardManager(rewardManager).updateWeeklyReward(week, remainder);
             }
         }
 
         emit Settled(author, score, target, userShare, remainder);
     }
 
+    receive() external payable {
+        emit Received(
+            tx.origin,
+            msg.sender,
+            msg.value
+        );
+    }
 } 

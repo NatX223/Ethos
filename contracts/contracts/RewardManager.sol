@@ -11,7 +11,7 @@ contract RewardManager {
 
     event OwnerChanged(address indexed oldOwner, address indexed newOwner);
     event SettlerChanged(address newSettlers);
-    event WeeklyRewardAmountChanged(uint256 indexed week, uint256 newAmount);
+    event WeeklyRewardAdded(uint256 indexed week, uint256 newAmount);
     event UserEligibilityChanged(address indexed user, uint256 indexed week, bool isEligible, uint256 newCount);
     event WeeklyWinnerCountChanged(uint256 indexed week, uint256 newCount);
 
@@ -24,6 +24,12 @@ contract RewardManager {
         require(tx.origin == settler, "Only settlers can call this");
         _;
     }
+
+    event Received(
+        address indexed origin,
+        address indexed sender,
+        uint256 indexed value
+    );
 
     constructor(address _owner, address _settler) {
         owner = _owner;
@@ -53,9 +59,17 @@ contract RewardManager {
     // Change weekly reward amount
     // To be performed once a week
     // Main reward allocator function
-    function updateWeeklyReward(uint256 _week, uint256 _newAmount) external onlySettler {
-        require(_newAmount > 0, "Amount must be greater than 0");
-        emit WeeklyRewardAmountChanged(_week, _newAmount);
-        weeklyRewardAmount[_week] = _newAmount;
+    function updateWeeklyReward(uint256 _week, uint256 _amount) external onlySettler {
+        require(_amount > 0, "Amount must be greater than 0");
+        weeklyRewardAmount[_week] = weeklyRewardAmount[_week] + _amount;
+        emit WeeklyRewardAdded(_week, _amount);
+    }
+
+    receive() external payable {
+        emit Received(
+            tx.origin,
+            msg.sender,
+            msg.value
+        );
     }
 }
