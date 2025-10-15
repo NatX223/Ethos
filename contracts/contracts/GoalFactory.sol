@@ -2,9 +2,9 @@
 pragma solidity ^0.8.28;
 
 import "./GoalContract.sol";
+import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
 
-contract GoalFactory {
-    address public owner;
+contract GoalFactory is ConfirmedOwner {
     address[] public settlers;
     address public rewardManager;
     mapping(uint256 => address) public deployedGoals;
@@ -16,26 +16,13 @@ contract GoalFactory {
     event rewardManagerChanged(address indexed oldrewardManager, address indexed newrewardManager);
     event GoalDeployed(uint256 indexed goalId, address indexed goal, address indexed settler, address rewardManager);
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
-        _;
-    }
-
-    constructor(address _owner, address[] memory _settlers, address _rewardManager) {
-        owner = _owner;
+    constructor(address[] memory _settlers, address _rewardManager) ConfirmedOwner(msg.sender) {
         settlers = _settlers;
         rewardManager = _rewardManager;
     }
 
-    // Change owner
-    function changeOwner(address _newOwner) external onlyOwner {
-        require(_newOwner != address(0), "Zero address");
-        emit OwnerChanged(owner, _newOwner);
-        owner = _newOwner;
-    }
-
-    function updateWeek(uint256 week) external onlyOwner() {
-        currentWeek = week;
+    function updateWeek() external {
+        currentWeek = currentWeek + 1;
     }
 
     // Change settlers

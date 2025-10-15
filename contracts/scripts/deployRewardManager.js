@@ -4,15 +4,14 @@ const { ethers } = require('hardhat');
 async function main() {
     const [signer] = await ethers.getSigners();
     const ownerAddress = await signer.getAddress();
-    const settlers = [ownerAddress]
 
     console.log("Deploying with address:", ownerAddress);
 
-    const GoalFactory = await ethers.getContractFactory('GoalFactory', signer);
-    const goalfactory = await GoalFactory.deploy(settlers, "0x9fB1005DF6A157387E92727Abe8C550405c31779");
-    const goalfactoryAddress = await goalfactory.getAddress();
+    const RewardManager = await ethers.getContractFactory('RewardManager', signer);
+    const rewardmanager = await RewardManager.deploy(ownerAddress, ownerAddress);
+    const rewardmanagerAddress = await rewardmanager.getAddress();
 
-    console.log(`goal factory deployed to: ${goalfactoryAddress}`);
+    console.log(`reward manager deployed to: ${rewardmanagerAddress}`);
 
 }
 
