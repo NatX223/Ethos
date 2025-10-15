@@ -66,53 +66,37 @@ contract Goal is ReentrancyGuard {
         amount = msg.value;
         emit GoalInitialized(msg.sender, _deadline, msg.value);
     }
-    
-    // Settle function - only settler can call after deadline
-    function settle(uint256 _userAmount, uint256  _rewardAmount) external onlySettler afterDeadline notSettled {
-        require(_userAmount + _rewardAmount == amount, "Amount mismatch");
-        (bool success, ) = rewardManager.call{value: _rewardAmount}("");
-        require(success, "Reward manager payment failed.");
 
-        (bool success2, ) = author.call{value: _userAmount}("");
-        require(success2, "Author payment failed.");   
+    function settleGoal(uint256 score) external onlySettler afterDeadline notSettled {
+        isSettled = true; // prevent re-entry
+        uint256 userShare;
+        uint256 remainder;
+        uint256 balance = address(this).balance;
 
-        if (_rewardAmount == 0) {
+        if (score >= target) {
+            userShare = balance;
+            (bool success, ) = payable(author).call{value: userShare}("");
+            require(success, "Transfer to user failed");
             IRewardManager(rewardManager).updateWeeklyWinnerCount(author, week);
+        } else {
+            uint256 completion = (score * 1e18) / target; 
+            userShare = (balance * completion) / 1e18;
+            remainder = balance - userShare;
+
+            // send user their proportional refund
+            if (userShare > 0) {
+                (bool successUser, ) = payable(author).call{value: userShare}("");
+                require(successUser, "User refund failed");
+            }
+
+            // send remaining funds to reward manager
+            if (remainder > 0) {
+                (bool successReward, ) = payable(rewardManager).call{value: remainder}("");
+                require(successReward, "Reward transfer failed");
+            }
         }
-        isSettled = true;
-        emit Settled(_userAmount, _rewardAmount);
+
+        emit Settled(author, score, target, userShare, remainder);
     }
-
-function settleGoal(uint256 score) external onlySettler afterDeadline notSettled {
-    isSettled = true; // prevent re-entry
-    uint256 userShare;
-    uint256 remainder;
-    uint256 balance = address(this).balance;
-
-    if (score >= target) {
-        userShare = balance;
-        (bool success, ) = payable(author).call{value: userShare}("");
-        require(success, "Transfer to user failed");
-        IRewardManager(rewardManager).updateWeeklyWinnerCount(author, week);
-    } else {
-        uint256 completion = (score * 1e18) / target; 
-        userShare = (balance * completion) / 1e18;
-        remainder = balance - userShare;
-
-        // send user their proportional refund
-        if (userShare > 0) {
-            (bool successUser, ) = payable(author).call{value: userShare}("");
-            require(successUser, "User refund failed");
-        }
-
-        // send remaining funds to reward manager
-        if (remainder > 0) {
-            (bool successReward, ) = payable(rewardManager).call{value: remainder}("");
-            require(successReward, "Reward transfer failed");
-        }
-    }
-
-    emit Settled(author, score, target, userShare, remainder);
-}
 
 } 
