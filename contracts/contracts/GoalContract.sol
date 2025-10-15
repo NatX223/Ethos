@@ -62,7 +62,7 @@ contract Goal is ReentrancyGuard {
         
         author = msg.sender;
         deadline = _deadline;
-        target = target;
+        target = _target;
         amount = msg.value;
         emit GoalInitialized(msg.sender, _deadline, msg.value);
     }
