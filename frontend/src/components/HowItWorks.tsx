@@ -9,12 +9,8 @@ const steps = [
     desc: 'Set your goal, deadline, and proof requirements.',
   },
   {
-    title: 'Stake ETH & Publish',
-    desc: 'Lock your ETH and make your challenge public.',
-  },
-  {
-    title: 'Others Bet',
-    desc: 'Friends and strangers bet on your success or failure.',
+    title: 'Stake & Publish',
+    desc: 'Lock your ETH or USDC and make your challenge public.',
   },
   {
     title: 'Complete & Earn',
@@ -26,7 +22,7 @@ export default function HowItWorks() {
   return (
     <section id="how" className="bg-dark border-t-2 border-primary py-20 px-4">
       <h2 className="text-accent text-3xl md:text-4xl font-bold text-center mb-12">How It Works</h2>
-      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
         {steps.map((step, i) => (
           <motion.div
             key={i}

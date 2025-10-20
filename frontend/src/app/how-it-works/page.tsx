@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { HowItWorks } from '~/components/HowItWorks';
+import HowItWorks from '~/components/HowItWorks';
 import { APP_NAME, APP_DESCRIPTION } from '~/lib/constants';
 
 export const metadata: Metadata = {
