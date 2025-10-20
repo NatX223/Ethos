@@ -247,12 +247,22 @@ function HeroSection() {
       <p className="max-w-xl mx-auto text-zinc-100 text-lg md:text-2xl mb-8">
         Create goals, Believe in Yourself and Earn Rewards.
       </p>
-      <a
-        href="/create"
-        className="bg-accent text-dark font-bold rounded-xl px-8 py-4 text-lg shadow-lg hover:scale-105 transition-transform duration-300"
-      >
-        Start a Challenge
-      </a>
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <a
+          href="/create"
+          className="bg-accent text-dark font-bold rounded-xl px-8 py-4 text-lg shadow-lg hover:scale-105 transition-transform duration-300"
+        >
+          Start a Challenge
+        </a>
+        {account && (
+          <a
+            href="/dashboard"
+            className="bg-dark border-2 border-accent text-accent font-bold rounded-xl px-8 py-4 text-lg shadow-lg hover:scale-105 transition-transform duration-300"
+          >
+            Dashboard
+          </a>
+        )}
+      </div>
     </motion.section>
   );
 }
@@ -499,9 +509,12 @@ function CallToAction() {
         Join Ethos and turn challenges into wins.
       </p>
       {account ? (
-        <button className="bg-dark text-accent rounded-full px-8 py-4 text-lg font-bold shadow-lg hover:scale-105 transition-transform duration-300">
+        <a
+          href="/dashboard"
+          className="bg-dark text-accent rounded-full px-8 py-4 text-lg font-bold shadow-lg hover:scale-105 transition-transform duration-300 inline-block"
+        >
           Launch App
-        </button>
+        </a>
       ) : (
         <div className="flex flex-col items-center gap-4">
           <p className="text-base mb-2">Connect your wallet to get started</p>

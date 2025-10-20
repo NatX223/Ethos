@@ -1,7 +1,7 @@
 import express from 'express';
 import Joi from 'joi';
 import { firebaseService } from '../services/firebaseService.js';
-import { Timestamp } from 'firebase-admin/firestore';
+// Removed unused import
 
 const router = express.Router();
 
@@ -68,7 +68,7 @@ const signupSchema = Joi.object({
       'string.pattern.base': 'Wallet address must be a valid Ethereum address',
       'any.required': 'Wallet address is required'
     }),
-  
+
   profile: Joi.object({
     displayName: Joi.string()
       .min(2)
@@ -78,14 +78,14 @@ const signupSchema = Joi.object({
         'string.min': 'Display name must be at least 2 characters',
         'string.max': 'Display name cannot exceed 50 characters'
       }),
-    
+
     email: Joi.string()
       .email()
       .optional()
       .messages({
         'string.email': 'Please provide a valid email address'
       }),
-    
+
     bio: Joi.string()
       .max(200)
       .optional()
@@ -93,21 +93,21 @@ const signupSchema = Joi.object({
         'string.max': 'Bio cannot exceed 200 characters'
       })
   }).optional(),
-  
+
   preferences: Joi.object({
     timezone: Joi.string()
       .default('UTC')
       .optional(),
-    
+
     currency: Joi.string()
       .valid('ETH', 'USDC')
       .default('ETH')
       .optional(),
-    
+
     notifications: Joi.boolean()
       .default(true)
       .optional(),
-    
+
     privacy: Joi.object({
       showProfile: Joi.boolean().default(true),
       showGoals: Joi.boolean().default(true),
@@ -124,7 +124,7 @@ const updateProfileSchema = Joi.object({
     bio: Joi.string().max(200).optional(),
     avatar: Joi.string().uri().optional()
   }).optional(),
-  
+
   preferences: Joi.object({
     timezone: Joi.string().optional(),
     currency: Joi.string().valid('ETH', 'USDC').optional(),
@@ -351,7 +351,7 @@ router.put('/:walletAddress/profile', async (req, res) => {
         ...existingUser.preferences,
         ...value.preferences
       };
-      
+
       // Handle nested privacy object
       if (value.preferences.privacy) {
         updateData.preferences.privacy = {
@@ -471,13 +471,13 @@ router.get('/:walletAddress/stats', async (req, res) => {
       collection.where('userAddress', '==', normalizedAddress)
     );
 
-    // Calculate real-time stats
+    // Calculate real-time stats with proper typing
     const realTimeStats = {
       totalGoals: userGoals.length,
-      completedGoals: userGoals.filter(g => g.status === 'completed').length,
-      failedGoals: userGoals.filter(g => g.status === 'failed').length,
-      activeGoals: userGoals.filter(g => g.status === 'active').length,
-      totalStaked: userGoals.reduce((sum, g) => sum + (g.lockAmount || 0), 0),
+      completedGoals: userGoals.filter((g: any) => g.status === 'completed').length,
+      failedGoals: userGoals.filter((g: any) => g.status === 'failed').length,
+      activeGoals: userGoals.filter((g: any) => g.status === 'active').length,
+      totalStaked: userGoals.reduce((sum: number, g: any) => sum + (g.lockAmount || 0), 0),
       // Add more calculations as needed
     };
 
