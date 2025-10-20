@@ -4,7 +4,7 @@ const goalSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true 
+        required: true
     },
     title: {
         type: String,
@@ -13,8 +13,8 @@ const goalSchema = new mongoose.Schema({
     description: String,
     goalType: {
         type: string,
-        enum: ['fitness', 'coding', 'reading' , 'health' , 'others' ],
-        required: true 
+        enum: ['fitness', 'coding', 'reading', 'health', 'others'],
+        required: true
     },
     metric: {
         type: String,
@@ -34,7 +34,7 @@ const goalSchema = new mongoose.Schema({
     },
     currency: {
         type: string,
-        enum: [ 'ETH', 'USDC' ],
+        enum: ['ETH', 'USDC'],
         default: 'ETH'
     },
     contractAddress: {
@@ -48,7 +48,7 @@ const goalSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['active', 'completed', 'failed' , 'pending verification', 'cancelled'],
+        enum: ['active', 'completed', 'failed', 'pending verification', 'cancelled'],
         default: 'active'
     },
     verificationResult: {
@@ -59,7 +59,7 @@ const goalSchema = new mongoose.Schema({
     },
     dataStream: {
         type: String,
-        enum: [ 'github', 'strava' , 'manual'],
+        enum: ['github', 'strava', 'manual'],
         required: true
     },
     createdAt: {
