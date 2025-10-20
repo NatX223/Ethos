@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useActiveAccount } from "thirdweb/react";
+import { useAccount } from "wagmi";
 
 interface OAuthConnectProps {
   onConnectionUpdate?: () => void;
@@ -22,34 +22,67 @@ interface ConnectedAccount {
 }
 
 export function OAuthConnect({ onConnectionUpdate }: OAuthConnectProps) {
-  const account = useActiveAccount();
+  const { address, isConnected } = useAccount();
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount>({});
 
   // Fetch user's connected accounts
   React.useEffect(() => {
-    if (account?.address) {
+    if (isConnected && address) {
       fetchConnectedAccounts();
     }
-  }, [account?.address]);
+  }, [isConnected, address]);
 
   const fetchConnectedAccounts = async () => {
-    if (!account?.address) return;
+    if (!address) return;
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/${account.address}`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/${address}`);
       if (response.ok) {
         const data = await response.json();
         setConnectedAccounts(data.data.user.connectedAccounts || {});
+      } else if (response.status === 404) {
+        // User doesn't exist, create them first
+        await createUser();
       }
     } catch (error) {
       console.error('Error fetching connected accounts:', error);
     }
   };
 
+  const createUser = async () => {
+    if (!address) return;
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          walletAddress: address,
+          profile: {
+            displayName: `User ${address.slice(0, 6)}`,
+          },
+        }),
+      });
+
+      if (response.ok) {
+        console.log('User created successfully');
+        // Fetch connected accounts after user creation
+        setTimeout(() => fetchConnectedAccounts(), 1000);
+      } else {
+        const errorData = await response.json();
+        console.error('Error creating user:', errorData);
+      }
+    } catch (error) {
+      console.error('Error creating user:', error);
+    }
+  };
+
   const initiateOAuth = async (provider: 'github' | 'strava') => {
-    if (!account?.address) {
+    if (!address) {
       alert('Please connect your wallet first');
       return;
     }
@@ -58,6 +91,9 @@ export function OAuthConnect({ onConnectionUpdate }: OAuthConnectProps) {
     setShowDropdown(false);
 
     try {
+      // First, ensure user exists
+      await ensureUserExists();
+
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/oauth/initiate`, {
         method: 'POST',
         headers: {
@@ -65,7 +101,7 @@ export function OAuthConnect({ onConnectionUpdate }: OAuthConnectProps) {
         },
         body: JSON.stringify({
           provider,
-          walletAddress: account.address,
+          walletAddress: address,
         }),
       });
 
@@ -85,8 +121,43 @@ export function OAuthConnect({ onConnectionUpdate }: OAuthConnectProps) {
     }
   };
 
+  const ensureUserExists = async () => {
+    if (!address) return;
+
+    try {
+      // Check if user exists
+      const checkResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/${address}`);
+      
+      if (checkResponse.status === 404) {
+        // User doesn't exist, create them
+        const createResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/signup`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            walletAddress: address,
+            profile: {
+              displayName: `User ${address.slice(0, 6)}`,
+            },
+          }),
+        });
+
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json();
+          throw new Error(errorData.error || 'Failed to create user');
+        }
+
+        console.log('User created successfully');
+      }
+    } catch (error) {
+      console.error('Error ensuring user exists:', error);
+      throw error;
+    }
+  };
+
   const disconnectAccount = async (provider: 'github' | 'strava') => {
-    if (!account?.address) return;
+    if (!address) return;
 
     setLoading(provider);
 
@@ -98,7 +169,7 @@ export function OAuthConnect({ onConnectionUpdate }: OAuthConnectProps) {
         },
         body: JSON.stringify({
           provider,
-          walletAddress: account.address,
+          walletAddress: address,
         }),
       });
 
@@ -144,7 +215,7 @@ export function OAuthConnect({ onConnectionUpdate }: OAuthConnectProps) {
     },
   ];
 
-  if (!account?.address) {
+  if (!isConnected || !address) {
     return (
       <div className="text-center p-4 bg-dark border border-accent/30 rounded-lg">
         <p className="text-zinc-400">Connect your wallet to link external accounts</p>

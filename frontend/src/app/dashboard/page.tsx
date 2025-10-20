@@ -1,15 +1,24 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useActiveAccount } from "thirdweb/react";
+import { useAccount } from "wagmi";
 import { OAuthConnect } from "~/components/OAuthConnect";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function Dashboard() {
-  const account = useActiveAccount();
+  const { address, isConnected } = useAccount();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showOAuthStatus, setShowOAuthStatus] = useState(false);
+  const [userExists, setUserExists] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+
+  // Check if user exists and create if needed
+  useEffect(() => {
+    if (isConnected && address) {
+      checkAndCreateUser();
+    }
+  }, [isConnected, address]);
 
   // Handle OAuth callback status
   useEffect(() => {
@@ -37,7 +46,49 @@ export default function Dashboard() {
     }
   }, [searchParams, router]);
 
-  if (!account?.address) {
+  const checkAndCreateUser = async () => {
+    if (!address) return;
+
+    try {
+      // Check if user exists
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/${address}`);
+      
+      if (response.ok) {
+        setUserExists(true);
+      } else if (response.status === 404) {
+        // User doesn't exist, create them
+        setIsCreatingUser(true);
+        
+        const createResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/signup`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            walletAddress: address,
+            profile: {
+              displayName: `User ${address.slice(0, 6)}`,
+            },
+          }),
+        });
+
+        if (createResponse.ok) {
+          setUserExists(true);
+          console.log('User created successfully');
+        } else {
+          const errorData = await createResponse.json();
+          console.error('Error creating user:', errorData);
+        }
+        
+        setIsCreatingUser(false);
+      }
+    } catch (error) {
+      console.error('Error checking/creating user:', error);
+      setIsCreatingUser(false);
+    }
+  };
+
+  if (!isConnected || !address) {
     return (
       <div className="min-h-screen bg-dark flex items-center justify-center">
         <div className="text-center">
@@ -54,6 +105,18 @@ export default function Dashboard() {
     );
   }
 
+  if (isCreatingUser) {
+    return (
+      <div className="min-h-screen bg-dark flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h1 className="text-2xl font-bold text-accent mb-4">Setting up your account...</h1>
+          <p className="text-zinc-400">Please wait while we create your profile</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-dark">
       {/* Navigation */}
@@ -65,9 +128,9 @@ export default function Dashboard() {
             </a>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 bg-accent/10 border border-accent rounded-lg px-4 py-2">
-                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                 <span className="text-accent font-medium text-sm">
-                  {account.address.slice(0, 6)}...{account.address.slice(-4)}
+                  {address.slice(0, 6)}...{address.slice(-4)}
                 </span>
               </div>
             </div>
@@ -111,7 +174,7 @@ export default function Dashboard() {
                 </label>
                 <div className="bg-dark border border-accent/20 rounded-lg px-3 py-2">
                   <code className="text-accent text-sm font-mono">
-                    {account.address}
+                    {address}
                   </code>
                 </div>
               </div>

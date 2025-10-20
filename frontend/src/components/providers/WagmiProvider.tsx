@@ -1,8 +1,15 @@
 import { createConfig, http, WagmiProvider } from "wagmi";
-import { base, degen, mainnet, optimism, unichain, baseSepolia } from "wagmi/chains";
+import {
+  base,
+  degen,
+  mainnet,
+  optimism,
+  unichain,
+  baseSepolia,
+} from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterFrame } from "@farcaster/frame-wagmi-connector";
-import { coinbaseWallet, metaMask } from 'wagmi/connectors';
+import { coinbaseWallet, metaMask } from "wagmi/connectors";
 import { APP_NAME, APP_ICON_URL, APP_URL } from "~/lib/constants";
 import { useEffect, useState } from "react";
 import { useConnect, useAccount } from "wagmi";
@@ -17,17 +24,18 @@ function useCoinbaseWalletAutoConnect() {
   useEffect(() => {
     // Check if we're running in Coinbase Wallet
     const checkCoinbaseWallet = () => {
-      const isInCoinbaseWallet = window.ethereum?.isCoinbaseWallet || 
+      const isInCoinbaseWallet =
+        window.ethereum?.isCoinbaseWallet ||
         window.ethereum?.isCoinbaseWalletExtension ||
         window.ethereum?.isCoinbaseWalletBrowser;
       setIsCoinbaseWallet(!!isInCoinbaseWallet);
     };
-    
+
     checkCoinbaseWallet();
-    window.addEventListener('ethereum#initialized', checkCoinbaseWallet);
-    
+    window.addEventListener("ethereum#initialized", checkCoinbaseWallet);
+
     return () => {
-      window.removeEventListener('ethereum#initialized', checkCoinbaseWallet);
+      window.removeEventListener("ethereum#initialized", checkCoinbaseWallet);
     };
   }, []);
 
@@ -42,20 +50,21 @@ function useCoinbaseWalletAutoConnect() {
 }
 
 export const config = createConfig({
-  chains: [base, optimism, mainnet, degen, unichain],
+  chains: [base, optimism, mainnet, degen, unichain, baseSepolia],
   transports: {
     [base.id]: http("https://mainnet.base.org"),
     [optimism.id]: http(),
     [mainnet.id]: http(),
     [degen.id]: http(),
     [unichain.id]: http(),
+    [baseSepolia.id]: http(),
   },
   connectors: [
     farcasterFrame(),
     coinbaseWallet({
       appName: APP_NAME,
       appLogoUrl: APP_ICON_URL,
-      preference: 'all',
+      preference: "all",
     }),
     metaMask({
       dappMetadata: {
@@ -64,23 +73,42 @@ export const config = createConfig({
       },
     }),
   ],
+  ssr: true,
 });
 
 const queryClient = new QueryClient();
 
-// Wrapper component that provides Coinbase Wallet auto-connection
-function CoinbaseWalletAutoConnect({ children }: { children: React.ReactNode }) {
+// Auto-reconnect hook for wallet persistence
+function useAutoReconnect() {
+  const { isConnected } = useAccount();
+  const { reconnect, connectors } = useConnect();
+
+  useEffect(() => {
+    // Try to reconnect on page load if not connected
+    if (!isConnected) {
+      const lastConnector = localStorage.getItem("wagmi.recentConnectorId");
+      if (lastConnector) {
+        const connector = connectors.find((c) => c.id === lastConnector);
+        if (connector) {
+          reconnect({ connectors: [connector] });
+        }
+      }
+    }
+  }, [isConnected, reconnect, connectors]);
+}
+
+// Wrapper component that provides auto-reconnection
+function WalletAutoConnect({ children }: { children: React.ReactNode }) {
   useCoinbaseWalletAutoConnect();
+  useAutoReconnect();
   return <>{children}</>;
 }
 
 export default function Provider({ children }: { children: React.ReactNode }) {
   return (
-    <WagmiProvider config={config}>
+    <WagmiProvider config={config} reconnectOnMount={true}>
       <QueryClientProvider client={queryClient}>
-        <CoinbaseWalletAutoConnect>
-          {children}
-        </CoinbaseWalletAutoConnect>
+        <WalletAutoConnect>{children}</WalletAutoConnect>
       </QueryClientProvider>
     </WagmiProvider>
   );
