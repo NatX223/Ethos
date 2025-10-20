@@ -199,7 +199,10 @@ function Navbar() {
 
 // Hero Section
 function HeroSection() {
-  const words = ["Believe in Yourself? Then..", "Bet on Yourself, that's the Ethos"];
+  const words = [
+    "Believe in Yourself? Then..",
+    "Bet on Yourself, that's the Ethos",
+  ];
   const [index, setIndex] = useState(0);
   useEffect(() => {
     const interval = setInterval(() => {
@@ -275,7 +278,7 @@ function HowItWorks() {
       <h2 className="text-accent text-3xl md:text-4xl font-bold text-center mb-12">
         How It Works
       </h2>
-      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 place-items-center">
+      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
         {steps.map((step, i) => (
           <motion.div
             key={i}

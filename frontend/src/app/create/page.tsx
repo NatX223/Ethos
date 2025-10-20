@@ -73,8 +73,8 @@ export default function CreateChallengePage() {
         metric: metric,
         deadline: deadline,
         authorAddress: account.address,
-        username: profiles?.[0].details.username,
-        platform: profiles?.[0].type,
+        username: profiles?.[0]?.details?.email || account.address?.slice(0, 8) + "...",
+        platform: profiles?.[0]?.type || "wallet",
       };
       formData.append("challengeData", JSON.stringify(challengeData));
       // Call backend API to handle uploads and timeline creation
