@@ -5,6 +5,9 @@ import { getSession } from "~/auth";
 import { Providers } from "~/app/providers";
 import { APP_NAME, APP_DESCRIPTION } from "~/lib/constants";
 import './globals.css';
+// import '@coinbase/onchainkit/styles.css';
+import { OnchainKitProvider } from '@coinbase/onchainkit';
+import { base, baseSepolia } from 'wagmi/chains';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-space-grotesk' });
@@ -21,6 +24,19 @@ export default async function RootLayout({
 }) {
   const session = await getSession();
   return (
+    // <OnchainKitProvider
+    //   apiKey="YOUR_API_KEY"
+    //   chain={baseSepolia}
+    //   config={{
+    //     appearance: {
+    //       mode: 'auto', // 'light' | 'dark' | 'auto'
+    //     },
+    //     wallet: {
+    //       display: 'modal', // 'modal' | 'drawer'
+    //       preference: 'all', // 'all' | 'smartWalletOnly' | 'eoaOnly'
+    //     },
+    //   }}
+    // >
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <head>
         <link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600&display=swap" rel="stylesheet" />
@@ -29,5 +45,6 @@ export default async function RootLayout({
         <Providers session={session}>{children}</Providers>
       </body>
     </html>
+    // </OnchainKitProvider>
   );
 }

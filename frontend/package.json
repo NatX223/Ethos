@@ -1,5 +1,5 @@
 {
-  "name": "timeline",
+  "name": "Ethos",
   "version": "0.1.0",
   "type": "module",
   "private": false,
@@ -20,6 +20,7 @@
     "cleanup": "lsof -ti :3000 | xargs kill -9"
   },
   "dependencies": {
+    "@coinbase/onchainkit": "^1.1.1",
     "@farcaster/auth-client": ">=0.3.0 <1.0.0",
     "@farcaster/auth-kit": ">=0.6.0 <1.0.0",
     "@farcaster/frame-core": ">=0.0.29 <1.0.0",
@@ -48,13 +49,13 @@
     "next-auth": "^4.24.11",
     "pinata": "^2.4.8",
     "radix-ui": "^1.4.2",
-    "react": "^18",
-    "react-dom": "^18",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "thirdweb": "^5.105.18",
-    "viem": "^2.23.6",
-    "wagmi": "^2.14.12",
+    "viem": "^2.38.0",
+    "wagmi": "^2.17.5",
     "which": "^5.0.0",
     "zod": "^3.24.2"
   },
