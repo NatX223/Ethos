@@ -6,8 +6,7 @@
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "test": "jest",
-    "populate-addresses": "node scripts/populateGoalAddresses.js"
+    "test": "jest"
   },
   "dependencies": {
     "@types/uuid": "^11.0.0",
