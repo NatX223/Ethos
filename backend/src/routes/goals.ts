@@ -17,8 +17,8 @@ interface Goal {
   id?: string;
   title: string;
   description?: string;
-  category: 'fitness' | 'coding' | 'reading' | 'health' | 'productivity' | 'learning' | 'other';
-  type: 'daily' | 'weekly' | 'monthly' | 'one-time' | 'streak';
+  category: 'fitness' | 'productivity' | 'onchain';
+  type: 'Commit' | 'Volume' | 'PnL' | 'Distance' | 'Calories' | 'streak';
   metric: string;
   targetValue: number;
   currentValue: number;
