@@ -22,10 +22,11 @@ export default function Dashboard() {
     }
   }, [isConnected, address]);
 
-  // Handle OAuth callback status
+  // Handle OAuth callback status and goal creation success
   useEffect(() => {
     const oauthProvider = searchParams.get('oauth');
     const status = searchParams.get('status');
+    const goalCreated = searchParams.get('goalCreated');
 
     if (oauthProvider && status) {
       setShowOAuthStatus(true);
@@ -45,6 +46,15 @@ export default function Dashboard() {
           router.replace('/dashboard');
         }, 100);
       }
+    }
+
+    if (goalCreated) {
+      // Show goal creation success
+      setTimeout(() => {
+        alert('🎉 Goal created successfully! Your commitment is now locked on the blockchain.');
+        // Clean up URL parameters
+        router.replace('/dashboard');
+      }, 100);
     }
   }, [searchParams, router]);
 
@@ -220,12 +230,12 @@ export default function Dashboard() {
               >
                 Create New Goal
               </a>
-              <a
-                href="/goals"
+              <button
+                onClick={() => window.location.href = '/goals'}
                 className="block w-full bg-dark border border-accent text-accent font-semibold rounded-lg px-4 py-3 text-center transition hover:bg-accent/10"
               >
                 View My Goals
-              </a>
+              </button>
             </div>
           </div>
 

@@ -31,6 +31,8 @@ export class FirebaseService {
     data: T,
     documentId?: string
   ): Promise<string> {
+    const startTime = Date.now();
+
     try {
       const collection = this.getCollection(collectionName);
 
@@ -115,10 +117,12 @@ export class FirebaseService {
       const query = queryBuilder ? queryBuilder(collection) : collection;
       const snapshot = await query.get();
 
-      return snapshot.docs.map(doc => ({
+      const results = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as T[];
+
+      return results;
     } catch (error) {
       throw new Error(`Failed to query documents from ${collectionName}: ${error}`);
     }

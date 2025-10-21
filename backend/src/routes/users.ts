@@ -1,7 +1,6 @@
 import express from 'express';
 import Joi from 'joi';
 import { firebaseService } from '../services/firebaseService.js';
-// Removed unused import
 
 const router = express.Router();
 
