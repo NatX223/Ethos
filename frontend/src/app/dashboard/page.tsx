@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useSwitchChain } from "wagmi";
+import { baseSepolia } from "wagmi/chains";
 import { OAuthConnect } from "~/components/OAuthConnect";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function Dashboard() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chain } = useAccount();
+  const { switchChain } = useSwitchChain();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showOAuthStatus, setShowOAuthStatus] = useState(false);
@@ -128,11 +130,26 @@ export default function Dashboard() {
             </a>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 bg-accent/10 border border-accent rounded-lg px-4 py-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                <span className="text-accent font-medium text-sm">
-                  {address.slice(0, 6)}...{address.slice(-4)}
-                </span>
+                <div className={`w-2 h-2 rounded-full ${
+                  chain?.id === baseSepolia.id ? "bg-green-400" : "bg-orange-400"
+                }`}></div>
+                <div className="flex flex-col">
+                  <span className="text-accent font-medium text-sm">
+                    {address.slice(0, 6)}...{address.slice(-4)}
+                  </span>
+                  <span className="text-xs text-zinc-400">
+                    {chain?.id === baseSepolia.id ? "Base Sepolia" : chain?.name || "Unknown Chain"}
+                  </span>
+                </div>
               </div>
+              {chain?.id !== baseSepolia.id && (
+                <button
+                  onClick={() => switchChain({ chainId: baseSepolia.id })}
+                  className="text-orange-400 hover:text-orange-300 text-sm px-3 py-2 rounded-lg transition-colors border border-orange-400/30"
+                >
+                  Switch to Base Sepolia
+                </button>
+              )}
             </div>
           </div>
         </div>

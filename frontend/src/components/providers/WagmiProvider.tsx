@@ -12,7 +12,7 @@ import { farcasterFrame } from "@farcaster/frame-wagmi-connector";
 import { coinbaseWallet, metaMask } from "wagmi/connectors";
 import { APP_NAME, APP_ICON_URL, APP_URL } from "~/lib/constants";
 import { useEffect, useState } from "react";
-import { useConnect, useAccount } from "wagmi";
+import { useConnect, useAccount, useReconnect } from "wagmi";
 import React from "react";
 
 // Custom hook for Coinbase Wallet detection and auto-connection
@@ -50,14 +50,14 @@ function useCoinbaseWalletAutoConnect() {
 }
 
 export const config = createConfig({
-  chains: [base, optimism, mainnet, degen, unichain, baseSepolia],
+  chains: [baseSepolia, base, optimism, mainnet, degen, unichain],
   transports: {
+    [baseSepolia.id]: http(process.env.TESTNET_PROVIDER_URL || "https://base-sepolia.drpc.org"),
     [base.id]: http("https://mainnet.base.org"),
     [optimism.id]: http(),
     [mainnet.id]: http(),
     [degen.id]: http(),
     [unichain.id]: http(),
-    [baseSepolia.id]: http(),
   },
   connectors: [
     farcasterFrame(),
@@ -81,20 +81,14 @@ const queryClient = new QueryClient();
 // Auto-reconnect hook for wallet persistence
 function useAutoReconnect() {
   const { isConnected } = useAccount();
-  const { reconnect, connectors } = useConnect();
+  const { reconnect } = useReconnect();
 
   useEffect(() => {
     // Try to reconnect on page load if not connected
     if (!isConnected) {
-      const lastConnector = localStorage.getItem("wagmi.recentConnectorId");
-      if (lastConnector) {
-        const connector = connectors.find((c) => c.id === lastConnector);
-        if (connector) {
-          reconnect({ connectors: [connector] });
-        }
-      }
+      reconnect();
     }
-  }, [isConnected, reconnect, connectors]);
+  }, [isConnected, reconnect]);
 }
 
 // Wrapper component that provides auto-reconnection

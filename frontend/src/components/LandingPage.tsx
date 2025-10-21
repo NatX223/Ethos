@@ -3,16 +3,25 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { AnimatePresence } from "framer-motion";
-import { useConnect, useAccount, useDisconnect } from "wagmi";
+import { useConnect, useAccount, useDisconnect, useSwitchChain } from "wagmi";
 import { coinbaseWallet } from "wagmi/connectors";
+import { baseSepolia } from "wagmi/chains";
 
 // Wallet Connection Component using Coinbase Wallet
 function WalletConnectButton() {
   const { connect, connectors, isPending } = useConnect();
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chain } = useAccount();
   const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
   const [showOptions, setShowOptions] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
+
+  // Auto-switch to Base Sepolia when wallet connects
+  useEffect(() => {
+    if (isConnected && chain && chain.id !== baseSepolia.id) {
+      switchChain({ chainId: baseSepolia.id });
+    }
+  }, [isConnected, chain, switchChain]);
 
   // Auto-create user when wallet connects
   useEffect(() => {
@@ -110,20 +119,42 @@ function WalletConnectButton() {
   ];
 
   if (isConnected && address) {
+    const isCorrectChain = chain?.id === baseSepolia.id;
+    
     return (
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-2 bg-accent/10 border border-accent rounded-lg px-4 py-2">
           <div
             className={`w-2 h-2 rounded-full ${
-              isCreatingUser ? "bg-yellow-400 animate-pulse" : "bg-green-400"
+              isCreatingUser 
+                ? "bg-yellow-400 animate-pulse" 
+                : isCorrectChain 
+                  ? "bg-green-400" 
+                  : "bg-orange-400"
             }`}
           ></div>
-          <span className="text-accent font-medium text-sm">
-            {isCreatingUser
-              ? "Setting up..."
-              : `${address.slice(0, 6)}...${address.slice(-4)}`}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-accent font-medium text-sm">
+              {isCreatingUser
+                ? "Setting up..."
+                : `${address.slice(0, 6)}...${address.slice(-4)}`}
+            </span>
+            {!isCreatingUser && (
+              <span className="text-xs text-zinc-400">
+                {isCorrectChain ? "Base Sepolia" : chain?.name || "Unknown Chain"}
+              </span>
+            )}
+          </div>
         </div>
+        {!isCreatingUser && !isCorrectChain && (
+          <button
+            onClick={() => switchChain({ chainId: baseSepolia.id })}
+            className="text-orange-400 hover:text-orange-300 text-xs px-2 py-1 rounded transition-colors border border-orange-400/30"
+            title="Switch to Base Sepolia"
+          >
+            Switch Network
+          </button>
+        )}
         {!isCreatingUser && (
           <button
             onClick={() => disconnect()}
