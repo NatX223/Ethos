@@ -11,8 +11,7 @@ import { parseEther } from "viem";
 
 const typeOptions = {
   Productivity: ["Commit", "Streak"],
-  Social: ["Engagement", "Follower"],
-  Onchain: ["Volume"],
+  Onchain: ["Volume", "PnL"],
   Fitness: ["Distance", "Streak", "Calories"],
 };
 
@@ -34,6 +33,7 @@ export default function CreateChallengePage() {
   const [contractAddress, setContractAddress] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string>("idle");
+  const [goalId, setGoalId] = useState<string | null>(null);
 
   // Wagmi hooks for contract interaction
   const {
@@ -82,12 +82,15 @@ export default function CreateChallengePage() {
 
   const fetchContractAddress = async (): Promise<string | null> => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/goals/contract-address`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/goals/contract-address`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to fetch contract address");
@@ -108,6 +111,54 @@ export default function CreateChallengePage() {
   // Convert deadline to Unix timestamp (seconds)
   const convertDeadlineToTimestamp = (date: Date): bigint => {
     return BigInt(Math.floor(date.getTime() / 1000));
+  };
+
+  // Save goal to database
+  const saveGoalToDatabase = async (
+    transactionHash: string,
+    contractAddr: string
+  ) => {
+    try {
+      setCurrentStep("Saving goal to database...");
+
+      const goalData = {
+        title: title.trim(),
+        description: description.trim(),
+        category: category.toLowerCase(),
+        type: type.toLowerCase(),
+        targetValue: parseFloat(metric),
+        lockAmount: parseFloat(amount),
+        currency: currency,
+        deadline: deadline.toISOString(),
+        userAddress: address,
+        contractAddress: contractAddr,
+        txHash: transactionHash,
+        dataSource: {
+          type: "manual",
+        },
+      };
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/goals`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(goalData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to save goal to database");
+      }
+
+      const result = await response.json();
+      console.log("✅ Goal saved to database:", result.data.goalId);
+
+      return result.data.goalId;
+    } catch (error) {
+      console.error("❌ Error saving goal to database:", error);
+      throw error;
+    }
   };
 
   // Call the smart contract initialize function
@@ -210,17 +261,37 @@ export default function CreateChallengePage() {
   }, [hash]);
 
   React.useEffect(() => {
-    if (isConfirmed && hash) {
-      setCurrentStep("Transaction confirmed! Goal created successfully.");
-      setIsLoading(false);
+    if (isConfirmed && hash && contractAddress) {
+      const handleTransactionConfirmed = async () => {
+        try {
+          console.log("✅ Goal contract initialized successfully!");
+          console.log("Transaction hash:", hash);
 
-      // TODO: Next steps:
-      // 1. Create goal record in database with transaction hash
-      // 2. Redirect to goal page
-      console.log("✅ Goal contract initialized successfully!");
-      console.log("Transaction hash:", hash);
+          // Save goal to database
+          const createdGoalId = await saveGoalToDatabase(hash, contractAddress);
+          setGoalId(createdGoalId);
+
+          setCurrentStep("Goal created successfully! Redirecting...");
+
+          // Redirect to goal page after a short delay
+          setTimeout(() => {
+            router.push(`/goals/${createdGoalId}`);
+          }, 2000);
+        } catch (error: any) {
+          console.error("❌ Error saving goal:", error);
+          setErrorMsg(
+            error.message ||
+              "Goal contract created but failed to save to database"
+          );
+          setCurrentStep("Contract created but database save failed");
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      handleTransactionConfirmed();
     }
-  }, [isConfirmed, hash]);
+  }, [isConfirmed, hash, contractAddress, router]);
 
   React.useEffect(() => {
     if (writeError) {
@@ -292,7 +363,6 @@ export default function CreateChallengePage() {
                 required
               >
                 <option value="Productivity">Productivity</option>
-                <option value="Social">Social</option>
                 <option value="Onchain">Onchain</option>
                 <option value="Fitness">Fitness</option>
               </select>
@@ -424,7 +494,13 @@ export default function CreateChallengePage() {
               <div className="mt-4 p-4 bg-green-500/20 border border-green-500/30 rounded-lg">
                 <p className="text-green-400 text-sm">
                   ✅ <strong>Goal Created Successfully!</strong> Your smart
-                  contract has been initialized.
+                  contract has been initialized and saved to database.
+                  {goalId && (
+                    <>
+                      <br />
+                      <strong>Goal ID:</strong> {goalId}
+                    </>
+                  )}
                 </p>
               </div>
             )}

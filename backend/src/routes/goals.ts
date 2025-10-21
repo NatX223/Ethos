@@ -9,7 +9,7 @@ const router = express.Router();
 interface GoalAddress {
   id?: string;
   address: string;
-  isUsed: boolean;
+  isUsed?: boolean;
 }
 
 // Goal interface for TypeScript
@@ -18,18 +18,18 @@ interface Goal {
   title: string;
   description?: string;
   category: 'fitness' | 'productivity' | 'onchain';
-  type: 'Commit' | 'Volume' | 'PnL' | 'Distance' | 'Calories' | 'streak';
-  metric: string;
+  type: 'commit' | 'volume' | 'pnl' | 'distance' | 'calories' | 'streak';
   targetValue: number;
   currentValue: number;
   lockAmount: number;
-  currency: 'ETH' | 'USDC';
+  currency: 'ETH';
   deadline: Date;
   userAddress: string;
   status: 'active' | 'completed' | 'failed' | 'pending_verification' | 'cancelled';
-  contractAddress?: string;
+  contractAddress: string;
+  txHash: string;
   dataSource?: {
-    type: 'github' | 'strava' | 'manual';
+    type: 'github' | 'strava' | 'onchain' | 'manual';
     config?: Record<string, any>;
   };
   verificationResult?: {
@@ -63,29 +63,19 @@ const createGoalSchema = Joi.object({
     }),
 
   category: Joi.string()
-    .valid('fitness', 'coding', 'reading', 'health', 'productivity', 'learning', 'other')
+    .valid('fitness', 'productivity', 'onchain')
     .required()
     .messages({
-      'any.only': 'Category must be one of: fitness, coding, reading, health, productivity, learning, other',
+      'any.only': 'Category must be one of: fitness, productivity, onchain',
       'any.required': 'Category is required'
     }),
 
   type: Joi.string()
-    .valid('daily', 'weekly', 'monthly', 'one-time', 'streak')
+    .valid('commit', 'volume', 'pnl', 'distance', 'calories', 'streak')
     .required()
     .messages({
-      'any.only': 'Type must be one of: daily, weekly, monthly, one-time, streak',
+      'any.only': 'Type must be one of: commit, volume, pnl, distance, calories, streak',
       'any.required': 'Type is required'
-    }),
-
-  metric: Joi.string()
-    .min(2)
-    .max(50)
-    .required()
-    .messages({
-      'string.min': 'Metric must be at least 2 characters long',
-      'string.max': 'Metric cannot exceed 50 characters',
-      'any.required': 'Metric is required'
     }),
 
   targetValue: Joi.number()
@@ -105,10 +95,10 @@ const createGoalSchema = Joi.object({
     }),
 
   currency: Joi.string()
-    .valid('ETH', 'USDC')
+    .valid('ETH')
     .default('ETH')
     .messages({
-      'any.only': 'Currency must be either ETH or USDC'
+      'any.only': 'Currency must be ETH'
     }),
 
   deadline: Joi.date()
@@ -127,9 +117,25 @@ const createGoalSchema = Joi.object({
       'any.required': 'User address is required'
     }),
 
+  contractAddress: Joi.string()
+    .pattern(/^0x[a-fA-F0-9]{40}$/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Contract address must be a valid Ethereum address',
+      'any.required': 'Contract address is required'
+    }),
+
+  txHash: Joi.string()
+    .pattern(/^0x[a-fA-F0-9]{64}$/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Transaction hash must be a valid Ethereum transaction hash',
+      'any.required': 'Transaction hash is required'
+    }),
+
   dataSource: Joi.object({
     type: Joi.string()
-      .valid('github', 'strava', 'manual')
+      .valid('github', 'strava', 'onchain', 'manual')
       .required(),
     config: Joi.object().optional()
   }).optional()
@@ -169,25 +175,55 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Check if transaction hash already exists
+    const existingTxGoals = await firebaseService.queryDocuments<Goal>('goals', (collection) =>
+      collection.where('txHash', '==', value.txHash)
+    );
+
+    if (existingTxGoals.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: 'A goal with this transaction hash already exists'
+      });
+    }
+
     // Prepare goal data
     const goalData: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'> = {
       title: value.title,
       description: value.description || '',
       category: value.category,
       type: value.type,
-      metric: value.metric,
       targetValue: value.targetValue,
       currentValue: 0,
       lockAmount: value.lockAmount,
       currency: value.currency || 'ETH',
       deadline: new Date(value.deadline),
       userAddress: value.userAddress.toLowerCase(),
+      contractAddress: value.contractAddress,
+      txHash: value.txHash,
       status: 'active',
       dataSource: value.dataSource || { type: 'manual' }
     };
 
     // Create the goal document
     const goalId = await firebaseService.createDocument('goals', goalData);
+
+    // Delete the used contract address from goalAddresses collection
+    try {
+      const contractAddresses = await firebaseService.queryDocuments<GoalAddress>('goalAddresses', (collection) =>
+        collection.where('address', '==', value.contractAddress)
+      );
+
+      if (contractAddresses.length > 0) {
+        const contractDoc = contractAddresses[0];
+        if (contractDoc.id) {
+          await firebaseService.deleteDocument('goalAddresses', contractDoc.id);
+          console.log(`✅ Deleted used contract address: ${value.contractAddress}`);
+        }
+      }
+    } catch (deleteError) {
+      console.warn('⚠️ Failed to delete contract address, but goal was created:', deleteError);
+    }
 
     // Fetch the created goal to return complete data
     const createdGoal = await firebaseService.getDocument<Goal>('goals', goalId);
