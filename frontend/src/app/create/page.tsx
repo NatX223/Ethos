@@ -113,13 +113,27 @@ export default function CreateChallengePage() {
     return BigInt(Math.floor(date.getTime() / 1000));
   };
 
+  // Get dataSource type based on category
+  const getDataSourceType = (categoryName: string): string => {
+    switch (categoryName.toLowerCase()) {
+      case "fitness":
+        return "strava";
+      case "productivity":
+        return "github";
+      case "onchain":
+        return "onchain";
+      default:
+        return "manual";
+    }
+  };
+
   // Save goal to database
   const saveGoalToDatabase = async (
     transactionHash: string,
     contractAddr: string
   ) => {
     try {
-      setCurrentStep("Saving goal to database...");
+      setCurrentStep("Finalizing your goal...");
 
       const goalData = {
         title: title.trim(),
@@ -134,17 +148,20 @@ export default function CreateChallengePage() {
         contractAddress: contractAddr,
         txHash: transactionHash,
         dataSource: {
-          type: "manual",
+          type: getDataSourceType(category),
         },
       };
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/goals`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(goalData),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/goals`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(goalData),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -206,11 +223,11 @@ export default function CreateChallengePage() {
 
     setIsLoading(true);
     setErrorMsg(null);
-    setCurrentStep("Starting goal creation...");
+    setCurrentStep("Setting up your goal...");
 
     try {
       // Step 1: Fetch contract address from backend
-      setCurrentStep("Fetching contract address...");
+      setCurrentStep("Setting up your goal...");
       console.log("🔄 Fetching contract address...");
       const fetchedContractAddress = await fetchContractAddress();
 
@@ -222,7 +239,7 @@ export default function CreateChallengePage() {
       console.log("✅ Contract address fetched:", fetchedContractAddress);
 
       // Step 2: Prepare contract parameters
-      setCurrentStep("Preparing contract parameters...");
+      setCurrentStep("Preparing to lock your funds...");
       const deadlineTimestamp = convertDeadlineToTimestamp(deadline);
       const targetValue = BigInt(parseFloat(metric));
       const lockAmountWei = parseEther(amount); // Convert ETH to wei
@@ -234,7 +251,7 @@ export default function CreateChallengePage() {
       });
 
       // Step 3: Initialize the smart contract
-      setCurrentStep("Please confirm the transaction in your wallet...");
+      setCurrentStep("Please confirm to lock your funds...");
       await initializeContract(
         fetchedContractAddress,
         deadlineTimestamp,
@@ -256,7 +273,7 @@ export default function CreateChallengePage() {
   React.useEffect(() => {
     if (hash) {
       setTxHash(hash);
-      setCurrentStep("Transaction submitted. Waiting for confirmation...");
+      setCurrentStep("Locking up your funds...");
     }
   }, [hash]);
 
@@ -271,7 +288,7 @@ export default function CreateChallengePage() {
           const createdGoalId = await saveGoalToDatabase(hash, contractAddress);
           setGoalId(createdGoalId);
 
-          setCurrentStep("Goal created successfully! Redirecting...");
+          setCurrentStep("All done! Redirecting to your goal...");
 
           // Redirect to goal page after a short delay
           setTimeout(() => {
@@ -466,41 +483,22 @@ export default function CreateChallengePage() {
               </div>
             )}
 
-            {contractAddress && (
-              <div className="mt-4 p-4 bg-green-500/20 border border-green-500/30 rounded-lg">
-                <p className="text-green-400 text-sm">
-                  <strong>Contract Address:</strong> {contractAddress}
-                </p>
-              </div>
-            )}
-
-            {txHash && (
-              <div className="mt-4 p-4 bg-blue-500/20 border border-blue-500/30 rounded-lg">
-                <p className="text-blue-400 text-sm">
-                  <strong>Transaction Hash:</strong>
-                  <a
-                    href={`https://basescan.org/tx/${txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-2 underline hover:text-blue-300"
-                  >
-                    {txHash.slice(0, 10)}...{txHash.slice(-8)}
-                  </a>
-                </p>
-              </div>
-            )}
+            {(isLoading || isWritePending || isConfirming) &&
+              currentStep !== "idle" && (
+                <div className="mt-4 p-4 bg-blue-500/20 border border-blue-500/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                    <p className="text-blue-400 text-sm">{currentStep}</p>
+                  </div>
+                </div>
+              )}
 
             {isConfirmed && (
               <div className="mt-4 p-4 bg-green-500/20 border border-green-500/30 rounded-lg">
                 <p className="text-green-400 text-sm">
-                  ✅ <strong>Goal Created Successfully!</strong> Your smart
-                  contract has been initialized and saved to database.
-                  {goalId && (
-                    <>
-                      <br />
-                      <strong>Goal ID:</strong> {goalId}
-                    </>
-                  )}
+                  ✅ <strong>All Done!</strong> Your goal has been created and
+                  your funds are locked. You'll be redirected to your goal page
+                  shortly.
                 </p>
               </div>
             )}
