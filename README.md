@@ -20,7 +20,7 @@ Base Batches 002 application
 
 ## Overview
 
-Ethos is a cross-chain staking and donation protocol that transforms traditional DeFi into a purpose-driven experience. Built for both Ethereum and Flow ecosystems, Ethos enables users to stake assets while supporting goal achievement and charitable causes.
+Ethos is a cross-chain staking and donation protocol that transforms traditional DeFi into a purpose-driven experience. Built for Base Ecosystem, Ethos enables users to stake assets while supporting goal achievement and charitable causes.
 
 Our motto **"Stake with Purpose"** reflects our mission to make every financial transaction create positive social impact.
 
@@ -114,7 +114,7 @@ function settleGoal(uint256 score) external onlySettler afterDeadline notSettled
 ```
 Smart Contracts
 Solidity 0.8.28 with OpenZeppelin ReentrancyGuard
-Ethereum/BASE network deployment
+BASE network deployment
 Hardhat development framework
 Backend & Infrastructure
 Node.js with Express server
@@ -144,7 +144,7 @@ Fair Distribution: Rewards distributed proportionally among weekly winners
 ## Contract Flow Interaction
 ```
 User ────┐
-         ├─► Goal.initialize() ──► Stake ETH & Set Target
+         ├─► Goal.initialize() ──► Stake Base ETH & Set Target
          │
 Settler ─┼─► Goal.settleGoal(score) ──┐
          │                           │
@@ -290,7 +290,7 @@ Open Source Community: For the incredible tools and libraries that make Ethos po
 
 Special Thanks
 ```
-To the to base and entire web3 community continuously pushing the boundaries of what's possible with blockchain technology, and to all the builders who believe that decentralized finance can be a powerful force for positive social change.
+To the to base ecosystem for continuously pushing the boundaries of what's possible with blockchain technology, and to all the builders who believe that decentralized finance can be a powerful force for positive social change.
 ```
 
 Built with ❤️ for a better Web3.
