@@ -24,6 +24,7 @@ const fallbackCorsOptions = {
   optionsSuccessStatus: 200
 };
 import { CronJobManager } from './services/cronJobManager.js';
+import { schedulerService } from './services/schedulerService.js';
 
 // Load environment variables
 dotenv.config();
@@ -64,6 +65,7 @@ process.on('SIGTERM', async () => {
   if (cronManager) {
     await cronManager.stopAllJobs();
   }
+  schedulerService.stop();
   process.exit(0);
 });
 
@@ -72,6 +74,7 @@ process.on('SIGINT', async () => {
   if (cronManager) {
     await cronManager.stopAllJobs();
   }
+  schedulerService.stop();
   process.exit(0);
 });
 
@@ -158,6 +161,10 @@ async function startServer() {
     cronManager = new CronJobManager();
     await cronManager.initializeJobs();
     console.log('✅ Cron jobs initialized');
+
+    // Start goal progress scheduler
+    schedulerService.start();
+    console.log('✅ Goal progress scheduler started');
 
     // Start Express server
     app.listen(PORT, () => {

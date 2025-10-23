@@ -1,6 +1,7 @@
 import express from 'express';
 import Joi from 'joi';
 import { firebaseService } from '../services/firebaseService.js';
+import { progressService } from '../services/progressService.js';
 import { Timestamp } from 'firebase-admin/firestore';
 
 const router = express.Router();
@@ -29,7 +30,7 @@ interface Goal {
   contractAddress: string;
   txHash: string;
   dataSource?: {
-    type: 'github' | 'strava' | 'onchain' | 'manual';
+    type: 'github' | 'strava' | 'onchain';
     config?: Record<string, any>;
   };
   verificationResult?: {
@@ -647,85 +648,55 @@ router.get('/goal/:goalId', async (req, res) => {
 });
 
 /**
- * PUT /api/goals/:goalId/progress
- * Update goal progress (manual update)
+ * POST /api/goals/:goalId/update-progress
+ * Automatically update goal progress from data source
  */
-router.put('/:goalId/progress', async (req, res) => {
+router.post('/:goalId/update-progress', async (req, res) => {
   try {
     const { goalId } = req.params;
-    const { currentValue, userAddress } = req.body;
+    const { userAddress } = req.body;
 
-    // Validate input
-    if (typeof currentValue !== 'number' || currentValue < 0) {
+    // Validate user address if provided
+    if (userAddress && !/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
       return res.status(400).json({
         success: false,
-        error: 'Current value must be a non-negative number'
+        error: 'Invalid user address format'
       });
     }
 
-    if (!userAddress || !/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
+    // Get the goal to verify ownership if userAddress is provided
+    if (userAddress) {
+      const goal = await firebaseService.getDocument<Goal>('goals', goalId);
+      if (!goal) {
+        return res.status(404).json({
+          success: false,
+          error: 'Goal not found'
+        });
+      }
+
+      // Verify ownership
+      if (goal.userAddress !== userAddress.toLowerCase()) {
+        return res.status(403).json({
+          success: false,
+          error: 'You can only update your own goals'
+        });
+      }
+    }
+
+    // Update progress using the progress service
+    const result = await progressService.updateGoalProgress(goalId);
+
+    if (!result) {
       return res.status(400).json({
         success: false,
-        error: 'Valid user address is required'
-      });
-    }
-
-    // Get the goal
-    const goal = await firebaseService.getDocument<Goal>('goals', goalId);
-    if (!goal) {
-      return res.status(404).json({
-        success: false,
-        error: 'Goal not found'
-      });
-    }
-
-    // Verify ownership
-    if (goal.userAddress !== userAddress.toLowerCase()) {
-      return res.status(403).json({
-        success: false,
-        error: 'You can only update your own goals'
-      });
-    }
-
-    // Check if goal is still active
-    if (goal.status !== 'active') {
-      return res.status(400).json({
-        success: false,
-        error: 'Can only update progress for active goals'
-      });
-    }
-
-    // Update progress
-    await firebaseService.updateDocument('goals', goalId, {
-      currentValue,
-      updatedAt: new Date()
-    });
-
-    // Check if goal is completed
-    let newStatus = goal.status;
-    if (currentValue >= goal.targetValue) {
-      newStatus = 'completed';
-      await firebaseService.updateDocument('goals', goalId, {
-        status: newStatus,
-        verificationResult: {
-          achieved: true,
-          actualValue: currentValue,
-          verifiedAt: new Date(),
-          verificationMethod: 'manual'
-        }
+        error: 'Goal progress could not be updated. Goal may be inactive, expired, or use manual tracking.'
       });
     }
 
     res.json({
       success: true,
       message: 'Goal progress updated successfully',
-      data: {
-        goalId,
-        currentValue,
-        targetValue: goal.targetValue,
-        status: newStatus,
-        completed: currentValue >= goal.targetValue
-      }
+      data: result
     });
 
   } catch (error) {
@@ -733,6 +704,84 @@ router.put('/:goalId/progress', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to update goal progress',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
+/**
+ * POST /api/goals/user/:userAddress/update-progress
+ * Update progress for all goals of a specific user
+ */
+router.post('/user/:userAddress/update-progress', async (req, res) => {
+  try {
+    const { userAddress } = req.params;
+
+    // Validate Ethereum address
+    if (!/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid Ethereum address format'
+      });
+    }
+
+    // Update progress for all user goals
+    const results = await progressService.updateUserGoals(userAddress);
+
+    res.json({
+      success: true,
+      message: `Updated progress for ${results.length} goals`,
+      data: {
+        updatedGoals: results,
+        totalUpdated: results.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating user goals progress:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update user goals progress',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
+/**
+ * POST /api/goals/update-all-progress
+ * Update progress for all active goals (admin/cron endpoint)
+ */
+router.post('/update-all-progress', async (req, res) => {
+  try {
+    // This endpoint could be protected with API key or admin authentication
+    const { adminKey } = req.body;
+
+    // Simple admin key check (in production, use proper authentication)
+    if (adminKey !== process.env.ADMIN_API_KEY) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized'
+      });
+    }
+
+    // Update progress for all active goals
+    const results = await progressService.updateAllActiveGoals();
+
+    res.json({
+      success: true,
+      message: `Batch update completed. Updated ${results.length} goals.`,
+      data: {
+        updatedGoals: results,
+        totalUpdated: results.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in batch progress update:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update all goals progress',
       message: error instanceof Error ? error.message : 'Unknown error occurred'
     });
   }
