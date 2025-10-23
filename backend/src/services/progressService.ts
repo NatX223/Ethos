@@ -114,7 +114,7 @@ export class ProgressService {
       }
 
       // Check if goal has expired
-      if (new Date() > goal.deadline) {
+      if (new Date() > new Date(goal.deadline)) {
         console.log(`Goal ${goalId} has expired, marking as failed`);
         await this.markGoalAsFailed(goalId);
         return null;

@@ -127,24 +127,55 @@ export class GitHubService {
   }
 
   /**
+   * Convert various date formats to Date object
+   */
+  private ensureDate(dateValue: any): Date {
+    if (dateValue instanceof Date) {
+      return dateValue;
+    }
+    
+    if (typeof dateValue === 'string') {
+      return new Date(dateValue);
+    }
+    
+    // Handle Firestore Timestamp
+    if (dateValue && typeof dateValue === 'object') {
+      if ('_seconds' in dateValue && typeof dateValue._seconds === 'number') {
+        return new Date(dateValue._seconds * 1000);
+      }
+      if ('seconds' in dateValue && typeof dateValue.seconds === 'number') {
+        return new Date(dateValue.seconds * 1000);
+      }
+      if (typeof dateValue.toDate === 'function') {
+        return dateValue.toDate();
+      }
+    }
+    
+    // Fallback
+    return new Date(dateValue);
+  }
+
+  /**
    * Get commits from a specific repository
    */
   private async getRepositoryCommits(
     owner: string,
     repo: string,
     author: string,
-    since: Date,
-    until?: Date
+    since: Date | any,
+    until?: Date | any
   ): Promise<GitHubCommit[]> {
     try {
+      const sinceDate = this.ensureDate(since);
       const params: any = {
         author,
-        since: since.toISOString(),
+        since: sinceDate.toISOString(),
         per_page: 100
       };
 
       if (until) {
-        params.until = until.toISOString();
+        const untilDate = this.ensureDate(until);
+        params.until = untilDate.toISOString();
       }
 
       const response = await axios.get(`${this.baseURL}/repos/${owner}/${repo}/commits`, {
