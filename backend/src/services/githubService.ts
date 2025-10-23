@@ -34,7 +34,7 @@ export class GitHubService {
   private getHeaders() {
     const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'Ethos'
+      'User-Agent': 'NatX223'
     };
 
     if (this.token) {
@@ -204,6 +204,114 @@ export class GitHubService {
     } catch (error) {
       console.error(`Error getting commit count for ${username}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Calculate consecutive commit streak for a user between two dates
+   */
+  async getUserCommitStreak(username: string, startDate: Date, endDate?: Date): Promise<number> {
+    try {
+      const commits = await this.getUserCommitsSince(username, startDate, endDate || new Date());
+      
+      if (commits.length === 0) {
+        return 0;
+      }
+
+      // Group commits by date (YYYY-MM-DD format)
+      const commitsByDate = new Map<string, number>();
+      
+      commits.forEach(commit => {
+        const commitDate = new Date(commit.commit.author.date);
+        const dateKey = commitDate.toISOString().split('T')[0]; // YYYY-MM-DD
+        commitsByDate.set(dateKey, (commitsByDate.get(dateKey) || 0) + 1);
+      });
+
+      // Get all dates with commits, sorted chronologically
+      const datesWithCommits = Array.from(commitsByDate.keys()).sort();
+      
+      if (datesWithCommits.length === 0) {
+        return 0;
+      }
+
+      // Calculate consecutive days from start date
+      const start = this.ensureDate(startDate);
+      const end = endDate ? this.ensureDate(endDate) : new Date();
+      
+      let streak = 0;
+      let currentDate = new Date(start);
+      
+      // Check each day from start date to end date (or current date)
+      while (currentDate <= end) {
+        const dateKey = currentDate.toISOString().split('T')[0];
+        
+        if (commitsByDate.has(dateKey)) {
+          streak++;
+        } else {
+          // If no commits on this day, streak is broken
+          // Reset streak to 0 and continue counting from next commit day
+          streak = 0;
+        }
+        
+        // Move to next day
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      return streak;
+
+    } catch (error) {
+      console.error(`Error calculating commit streak for ${username}:`, error);
+      throw new Error(`Failed to calculate GitHub commit streak for user ${username}`);
+    }
+  }
+
+  /**
+   * Get current active streak (consecutive days with commits up to today)
+   */
+  async getCurrentCommitStreak(username: string, startDate: Date): Promise<number> {
+    try {
+      const commits = await this.getUserCommitsSince(username, startDate, new Date());
+      
+      if (commits.length === 0) {
+        return 0;
+      }
+
+      // Group commits by date
+      const commitsByDate = new Map<string, boolean>();
+      
+      commits.forEach(commit => {
+        const commitDate = new Date(commit.commit.author.date);
+        const dateKey = commitDate.toISOString().split('T')[0];
+        commitsByDate.set(dateKey, true);
+      });
+
+      // Calculate streak working backwards from today
+      let streak = 0;
+      let currentDate = new Date();
+      
+      // Start from today and work backwards
+      while (currentDate >= startDate) {
+        const dateKey = currentDate.toISOString().split('T')[0];
+        
+        if (commitsByDate.has(dateKey)) {
+          streak++;
+        } else {
+          // If we haven't started counting yet (no commits today), continue
+          // If we have started counting, break the streak
+          if (streak > 0) {
+            break;
+          }
+        }
+        
+        // Move to previous day
+        currentDate.setDate(currentDate.getDate() - 1);
+      }
+
+      return streak;
+
+    } catch (error) {
+      console.error(`Error calculating current commit streak for ${username}:`, error);
+      throw new Error(`Failed to calculate current GitHub commit streak for user ${username}`);
     }
   }
 

@@ -126,6 +126,8 @@ export class ProgressService {
       // Update progress based on data source
       if (goal.dataSource?.type === 'github' && goal.type === 'commit') {
         newValue = await this.updateGitHubCommitProgress(goal);
+      } else if (goal.dataSource?.type === 'github' && goal.type === 'streak') {
+        newValue = await this.updateGitHubStreakProgress(goal);
       } else if (goal.dataSource?.type === 'strava') {
         // TODO: Implement Strava progress tracking
         console.log('Strava progress tracking not yet implemented');
@@ -204,6 +206,33 @@ export class ProgressService {
 
     } catch (error) {
       console.error(`Error updating GitHub commit progress:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update GitHub streak progress for a goal
+   */
+  private async updateGitHubStreakProgress(goal: Goal): Promise<number> {
+    try {
+      // Get GitHub username from user profile
+      const userProfile = await this.getUserGitHubProfile(goal.userAddress);
+      const githubUsername = userProfile?.username;
+
+      if (!githubUsername) {
+        throw new Error('No GitHub username found for this goal');
+      }
+
+      // Calculate current active streak from goal start date
+      const streakCount = await githubService.getCurrentCommitStreak(
+        githubUsername,
+        goal.createdAt
+      );
+
+      return streakCount;
+
+    } catch (error) {
+      console.error(`Error updating GitHub streak progress:`, error);
       throw error;
     }
   }
