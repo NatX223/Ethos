@@ -1,17 +1,16 @@
-import express, { Request, Response, NextFunction, ErrorRequestHandler } from 'express';
+import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
-
 // Fallback middleware definitions
-const fallbackRequestLogger = (req: Request, res: Response, next: NextFunction) => {
+const fallbackRequestLogger = (req: any, res: any, next: any) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
   next();
 };
 
-const fallbackErrorHandler: ErrorRequestHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+const fallbackErrorHandler = (err: any, req: any, res: any, next: any) => {
   console.error('Error:', err.message);
   res.status(err.status || 500).json({
     success: false,
@@ -57,30 +56,27 @@ export const db = getFirestore();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Initialize cron jobs (only for non-serverless environments)
+// Initialize cron jobs
 let cronManager: CronJobManager;
-const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
 
-// Graceful shutdown (only for non-serverless environments)
-if (!isServerless) {
-  process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, shutting down gracefully');
-    if (cronManager) {
-      await cronManager.stopAllJobs();
-    }
-    schedulerService.stop();
-    process.exit(0);
-  });
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  if (cronManager) {
+    await cronManager.stopAllJobs();
+  }
+  schedulerService.stop();
+  process.exit(0);
+});
 
-  process.on('SIGINT', async () => {
-    console.log('SIGINT received, shutting down gracefully');
-    if (cronManager) {
-      await cronManager.stopAllJobs();
-    }
-    schedulerService.stop();
-    process.exit(0);
-  });
-}
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully');
+  if (cronManager) {
+    await cronManager.stopAllJobs();
+  }
+  schedulerService.stop();
+  process.exit(0);
+});
 
 // Start server
 async function startServer() {
@@ -91,7 +87,6 @@ async function startServer() {
     let corsOptions = fallbackCorsOptions;
 
     try {
-      // @ts-ignore - Dynamic import of JS middleware file
       const middleware = await import('./middleware/auth.js');
       errorHandler = middleware.errorHandler;
       requestLogger = middleware.requestLogger;
@@ -108,7 +103,7 @@ async function startServer() {
     app.use(requestLogger);
 
     // Health check endpoint
-    app.get('/health', (req: Request, res: Response) => {
+    app.get('/health', (req, res) => {
       res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
@@ -141,12 +136,11 @@ async function startServer() {
       loadRoute('/api/auth', 'auth'),
       loadRoute('/api/users', 'users'), 
       loadRoute('/api/goals', 'goals'),
-      loadRoute('/api/oauth', 'oauth'),
-      loadRoute('/api/admin', 'admin')
+      loadRoute('/api/oauth', 'oauth')
     ]);
 
     // 404 handler
-    app.use('*', (req: Request, res: Response) => {
+    app.use('*', (req, res) => {
       res.status(404).json({
         success: false,
         error: 'Route not found'
@@ -163,31 +157,14 @@ async function startServer() {
     });
     console.log('✅ Firebase Firestore connected successfully');
 
-    // Initialize and start cron jobs (only for non-serverless environments)
-    if (!isServerless) {
-      cronManager = new CronJobManager();
-      await cronManager.initializeJobs();
-      
-      // Check for any missed daily jobs on startup
-      await cronManager.checkMissedJobs();
-      console.log('✅ Cron jobs initialized and checked for missed executions');
+    // Initialize and start cron jobs
+    cronManager = new CronJobManager();
+    await cronManager.initializeJobs();
+    console.log('✅ Cron jobs initialized');
 
-      // Set cron manager for admin routes
-      try {
-        const { setCronManager } = await import('./routes/admin.js');
-        setCronManager(cronManager);
-        console.log('✅ Admin routes configured with cron manager');
-      } catch (error) {
-        console.log('⚠️ Admin routes not available');
-      }
-
-      // Start goal progress scheduler
-      schedulerService.start();
-      console.log('✅ Goal progress scheduler started');
-    } else {
-      console.log('⚠️ Serverless environment detected - cron jobs disabled');
-      console.log('💡 Use Vercel Cron or external cron service for scheduled tasks');
-    }
+    // Start goal progress scheduler
+    schedulerService.start();
+    console.log('✅ Goal progress scheduler started');
 
     // Start Express server
     app.listen(PORT, () => {

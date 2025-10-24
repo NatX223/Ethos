@@ -1,6 +1,5 @@
 import { firebaseService } from './firebaseService.js';
 import { githubService } from './githubService.js';
-import { stravaService } from './stravaService.js';
 
 interface Goal {
   id?: string;
@@ -66,7 +65,6 @@ interface EthosUser {
       athleteId?: string;
       accessToken?: string; // encrypted
       refreshToken?: string; // encrypted
-      expiresAt?: Date; // when the access token expires
       connectedAt?: Date;
       lastSyncAt?: Date;
       isActive: boolean;
@@ -130,12 +128,10 @@ export class ProgressService {
         newValue = await this.updateGitHubCommitProgress(goal);
       } else if (goal.dataSource?.type === 'github' && goal.type === 'streak') {
         newValue = await this.updateGitHubStreakProgress(goal);
-      } else if (goal.dataSource?.type === 'strava' && goal.type === 'distance') {
-        newValue = await this.updateStravaDistanceProgress(goal);
-      } else if (goal.dataSource?.type === 'strava' && goal.type === 'streak') {
-        newValue = await this.updateStravaStreakProgress(goal);
-      } else if (goal.dataSource?.type === 'strava' && goal.type === 'calories') {
-        newValue = await this.updateStravaCaloriesProgress(goal);
+      } else if (goal.dataSource?.type === 'strava') {
+        // TODO: Implement Strava progress tracking
+        console.log('Strava progress tracking not yet implemented');
+        return null;
       } else if (goal.dataSource?.type === 'onchain') {
         // TODO: Implement onchain progress tracking
         console.log('Onchain progress tracking not yet implemented');
@@ -238,150 +234,6 @@ export class ProgressService {
     } catch (error) {
       console.error(`Error updating GitHub streak progress:`, error);
       throw error;
-    }
-  }
-
-  /**
-   * Update Strava distance progress for a goal
-   */
-  private async updateStravaDistanceProgress(goal: Goal): Promise<number> {
-    try {
-      // Get Strava access token from user profile
-      const userProfile = await this.getUserStravaProfile(goal.userAddress);
-      const accessToken = userProfile?.accessToken;
-
-      if (!accessToken) {
-        throw new Error('No Strava access token found for this goal');
-      }
-
-      // Get total distance since goal creation (in kilometers)
-      const distanceKm = await stravaService.getTotalDistanceKm(
-        accessToken,
-        goal.createdAt,
-        new Date()
-      );
-
-      return Math.round(distanceKm * 100) / 100; // Round to 2 decimal places
-
-    } catch (error) {
-      console.error(`Error updating Strava distance progress:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Update Strava streak progress for a goal
-   */
-  private async updateStravaStreakProgress(goal: Goal): Promise<number> {
-    try {
-      // Get Strava access token from user profile
-      const userProfile = await this.getUserStravaProfile(goal.userAddress);
-      const accessToken = userProfile?.accessToken;
-
-      if (!accessToken) {
-        throw new Error('No Strava access token found for this goal');
-      }
-
-      // Calculate current active streak from goal start date
-      const streakCount = await stravaService.getCurrentActivityStreak(
-        accessToken,
-        goal.createdAt
-      );
-
-      return streakCount;
-
-    } catch (error) {
-      console.error(`Error updating Strava streak progress:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Update Strava calories progress for a goal
-   */
-  private async updateStravaCaloriesProgress(goal: Goal): Promise<number> {
-    try {
-      // Get Strava access token from user profile
-      const userProfile = await this.getUserStravaProfile(goal.userAddress);
-      const accessToken = userProfile?.accessToken;
-
-      if (!accessToken) {
-        throw new Error('No Strava access token found for this goal');
-      }
-
-      // Get total calories burned since goal creation
-      const totalCalories = await stravaService.getTotalCalories(
-        accessToken,
-        goal.createdAt,
-        new Date()
-      );
-
-      return totalCalories;
-
-    } catch (error) {
-      console.error(`Error updating Strava calories progress:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get user's Strava profile from database with token refresh if needed
-   */
-  private async getUserStravaProfile(userAddress: string): Promise<{ accessToken: string; athleteId?: string } | null> {
-    try {
-      // Query user profiles using the EthosUser structure
-      const userProfiles = await firebaseService.queryDocuments<EthosUser>('ethosuser', (collection) =>
-        collection.where('walletAddress', '==', userAddress.toLowerCase())
-      );
-
-      if (userProfiles.length > 0) {
-        const profile: EthosUser = userProfiles[0];
-        const stravaAccount = profile.connectedAccounts?.strava;
-
-        if (stravaAccount?.isActive && stravaAccount.accessToken) {
-          // Check if token is expired or about to expire (within 1 hour)
-          const now = new Date();
-          const expiresAt = stravaAccount.expiresAt ? new Date(stravaAccount.expiresAt) : null;
-
-          if (expiresAt && expiresAt.getTime() - now.getTime() < 60 * 60 * 1000) {
-            // Token is expired or expires within 1 hour, refresh it
-            if (stravaAccount.refreshToken) {
-              const refreshResult = await stravaService.refreshAccessToken(stravaAccount.refreshToken);
-
-              if (refreshResult) {
-                // Update the user's tokens in the database
-                await firebaseService.updateDocument('ethosuser', userAddress.toLowerCase(), {
-                  'connectedAccounts.strava.accessToken': refreshResult.access_token,
-                  'connectedAccounts.strava.refreshToken': refreshResult.refresh_token,
-                  'connectedAccounts.strava.expiresAt': new Date(refreshResult.expires_at * 1000),
-                  'connectedAccounts.strava.lastSyncAt': new Date(),
-                  updatedAt: new Date()
-                });
-
-                console.log(`✅ Refreshed Strava token for user: ${userAddress}`);
-
-                return {
-                  accessToken: refreshResult.access_token,
-                  athleteId: stravaAccount.athleteId
-                };
-              } else {
-                console.error(`❌ Failed to refresh Strava token for user: ${userAddress}`);
-                return null;
-              }
-            }
-          }
-
-          return {
-            accessToken: stravaAccount.accessToken,
-            athleteId: stravaAccount.athleteId
-          };
-        }
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Error fetching user Strava profile:', error);
-      return null;
     }
   }
 

@@ -1,8 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/update-progress",
-      "schedule": "0 * * * *"
-    }
-  ]
-}
+  "buildCommand": "next build",
+  "framework": "nextjs"
+} 

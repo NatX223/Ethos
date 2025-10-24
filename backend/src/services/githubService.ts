@@ -92,7 +92,7 @@ export class GitHubService {
       }
 
       // Sort commits by date (newest first)
-      return allCommits.sort((a, b) =>
+      return allCommits.sort((a, b) => 
         new Date(b.commit.author.date).getTime() - new Date(a.commit.author.date).getTime()
       );
 
@@ -133,11 +133,11 @@ export class GitHubService {
     if (dateValue instanceof Date) {
       return dateValue;
     }
-
+    
     if (typeof dateValue === 'string') {
       return new Date(dateValue);
     }
-
+    
     // Handle Firestore Timestamp
     if (dateValue && typeof dateValue === 'object') {
       if ('_seconds' in dateValue && typeof dateValue._seconds === 'number') {
@@ -150,7 +150,7 @@ export class GitHubService {
         return dateValue.toDate();
       }
     }
-
+    
     // Fallback
     return new Date(dateValue);
   }
@@ -213,14 +213,14 @@ export class GitHubService {
   async getUserCommitStreak(username: string, startDate: Date, endDate?: Date): Promise<number> {
     try {
       const commits = await this.getUserCommitsSince(username, startDate, endDate || new Date());
-
+      
       if (commits.length === 0) {
         return 0;
       }
 
       // Group commits by date (YYYY-MM-DD format)
       const commitsByDate = new Map<string, number>();
-
+      
       commits.forEach(commit => {
         const commitDate = new Date(commit.commit.author.date);
         const dateKey = commitDate.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -229,7 +229,7 @@ export class GitHubService {
 
       // Get all dates with commits, sorted chronologically
       const datesWithCommits = Array.from(commitsByDate.keys()).sort();
-
+      
       if (datesWithCommits.length === 0) {
         return 0;
       }
@@ -237,14 +237,14 @@ export class GitHubService {
       // Calculate consecutive days from start date
       const start = this.ensureDate(startDate);
       const end = endDate ? this.ensureDate(endDate) : new Date();
-
+      
       let streak = 0;
       let currentDate = new Date(start);
-
+      
       // Check each day from start date to end date (or current date)
       while (currentDate <= end) {
         const dateKey = currentDate.toISOString().split('T')[0];
-
+        
         if (commitsByDate.has(dateKey)) {
           streak++;
         } else {
@@ -252,7 +252,7 @@ export class GitHubService {
           // Reset streak to 0 and continue counting from next commit day
           streak = 0;
         }
-
+        
         // Move to next day
         currentDate.setDate(currentDate.getDate() + 1);
       }
@@ -271,14 +271,14 @@ export class GitHubService {
   async getCurrentCommitStreak(username: string, startDate: Date): Promise<number> {
     try {
       const commits = await this.getUserCommitsSince(username, startDate, new Date());
-
+      
       if (commits.length === 0) {
         return 0;
       }
 
       // Group commits by date
       const commitsByDate = new Map<string, boolean>();
-
+      
       commits.forEach(commit => {
         const commitDate = new Date(commit.commit.author.date);
         const dateKey = commitDate.toISOString().split('T')[0];
@@ -288,11 +288,11 @@ export class GitHubService {
       // Calculate streak working backwards from today
       let streak = 0;
       let currentDate = new Date();
-
+      
       // Start from today and work backwards
       while (currentDate >= startDate) {
         const dateKey = currentDate.toISOString().split('T')[0];
-
+        
         if (commitsByDate.has(dateKey)) {
           streak++;
         } else {
@@ -302,7 +302,7 @@ export class GitHubService {
             break;
           }
         }
-
+        
         // Move to previous day
         currentDate.setDate(currentDate.getDate() - 1);
       }
