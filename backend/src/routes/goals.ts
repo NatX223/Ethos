@@ -251,6 +251,60 @@ router.post('/', async (req, res) => {
 });
 
 /**
+ * GET /api/goals/featured
+ * Get featured goals for the landing page (simple query, no composite index needed)
+ */
+router.get('/featured', async (req, res) => {
+  try {
+    const { limit = '4' } = req.query;
+    const limitNum = parseInt(limit as string);
+
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 20) {
+      return res.status(400).json({
+        success: false,
+        error: 'Limit must be a number between 1 and 20'
+      });
+    }
+
+    // Simple query - just get recent goals ordered by creation date
+    const queryBuilder = (collection: any) => {
+      return collection
+        .orderBy('createdAt', 'desc')
+        .limit(50); // Get more to filter for active status
+    };
+
+    const allGoals = await firebaseService.queryDocuments<Goal>('goals', queryBuilder);
+    
+    // Filter for active goals only (client-side to avoid index)
+    const activeGoals = allGoals
+      .filter(goal => goal.status === 'active')
+      .slice(0, limitNum);
+
+    // Anonymize user addresses for privacy
+    const featuredGoals = activeGoals.map(goal => ({
+      ...goal,
+      userAddress: `${goal.userAddress.substring(0, 6)}...${goal.userAddress.substring(38)}`
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        goals: featuredGoals,
+        count: featuredGoals.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching featured goals:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch featured goals',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
+/**
  * GET /api/goals/latest
  * Get the latest goals created across all users
  */
@@ -310,41 +364,51 @@ router.get('/latest', async (req, res) => {
       }
     }
 
-    // Build query with filters
+    // Build query with filters - simplified to avoid composite index requirements
     const queryBuilder = (collection: any) => {
-      let query = collection;
+      // Start with basic query ordered by creation date
+      let query = collection.orderBy('createdAt', 'desc');
 
-      // Filter by status if provided
-      if (status && status !== 'all') {
-        query = query.where('status', '==', status);
-      }
+      // Apply pagination
+      query = query.limit(limitNum * 3); // Get more to filter client-side
 
-      // Filter by category if provided
-      if (category && category !== 'all') {
-        const validCategories = ['fitness', 'coding', 'reading', 'health', 'productivity', 'learning', 'other'];
-        if (!validCategories.includes(category as string)) {
-          throw new Error('Invalid category');
-        }
-        query = query.where('category', '==', category);
-      }
-
-      // Filter by timeframe if provided
-      if (timeframeDate) {
-        query = query.where('createdAt', '>=', timeframeDate);
-      }
-
-      // Order by creation date (newest first) and apply pagination
-      return query
-        .orderBy('createdAt', 'desc')
-        .limit(limitNum)
-        .offset(offsetNum);
+      return query;
     };
 
-    const goals = await firebaseService.queryDocuments<Goal>('goals', queryBuilder);
+    const allGoals = await firebaseService.queryDocuments<Goal>('goals', queryBuilder);
+
+    // Filter client-side to avoid composite index requirements
+    let filteredGoals = allGoals;
+
+    // Filter by status if provided
+    if (status && status !== 'all') {
+      filteredGoals = filteredGoals.filter(goal => goal.status === status);
+    }
+
+    // Filter by category if provided
+    if (category && category !== 'all') {
+      const validCategories = ['fitness', 'productivity', 'onchain'];
+      if (!validCategories.includes(category as string)) {
+        throw new Error('Invalid category');
+      }
+      filteredGoals = filteredGoals.filter(goal => goal.category === category);
+    }
+
+    // Filter by timeframe if provided
+    if (timeframeDate) {
+      filteredGoals = filteredGoals.filter(goal => {
+        const goalDate = goal.createdAt instanceof Date ? goal.createdAt : new Date(goal.createdAt);
+        return goalDate >= timeframeDate;
+      });
+    }
+
+    // Apply pagination after filtering
+    const goals = filteredGoals.slice(offsetNum, offsetNum + limitNum);
 
     // Calculate statistics
     const stats = {
       totalReturned: goals.length,
+      totalFiltered: filteredGoals.length,
       categories: {} as Record<string, number>,
       statuses: {} as Record<string, number>,
       totalLockAmount: 0,
@@ -387,7 +451,7 @@ router.get('/latest', async (req, res) => {
         pagination: {
           limit: limitNum,
           offset: offsetNum,
-          hasMore: goals.length === limitNum // Indicates there might be more
+          hasMore: filteredGoals.length > offsetNum + limitNum // Indicates there might be more
         },
         filters: {
           category: category || 'all',

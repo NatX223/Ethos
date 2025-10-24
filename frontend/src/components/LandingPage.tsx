@@ -419,7 +419,7 @@ function FeaturedChallenges() {
       try {
         setLoading(true);
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/goals/latest?limit=4&status=active&timeframe=7d`
+          `${process.env.NEXT_PUBLIC_API_URL}/api/goals/featured?limit=4`
         );
 
         if (!response.ok) {
