@@ -787,4 +787,68 @@ router.post('/update-all-progress', async (req, res) => {
   }
 });
 
+// Smart update endpoint - triggers when user visits dashboard
+router.post('/update-my-progress', async (req, res) => {
+  try {
+    const userAddress = req.body.userAddress;
+    
+    if (!userAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'User address is required'
+      });
+    }
+
+    console.log(`🎯 Dashboard progress update requested for: ${userAddress}`);
+    
+    // Import smart update service
+    const { smartUpdateService } = await import('../services/smartUpdateService.js');
+    
+    // Update user's goals on-demand
+    const result = await smartUpdateService.updateUserGoalsOnDemand(userAddress);
+    
+    res.json({
+      success: true,
+      message: 'Progress updated successfully',
+      data: result,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in dashboard progress update:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update progress',
+      details: error.message
+    });
+  }
+});
+
+// Manual deadline check endpoint (for testing)
+router.post('/check-deadlines', async (req, res) => {
+  try {
+    console.log('📋 Manual deadline check requested');
+    
+    // Import deadline service
+    const { deadlineService } = await import('../services/deadlineService.js');
+    
+    // Run manual deadline check
+    await deadlineService.runManualCheck();
+    
+    res.json({
+      success: true,
+      message: 'Deadline check completed successfully',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in manual deadline check:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to run deadline check',
+      details: error.message
+    });
+  }
+});
+
 export default router;

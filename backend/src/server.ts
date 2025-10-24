@@ -25,6 +25,7 @@ const fallbackCorsOptions = {
 };
 import { CronJobManager } from './services/cronJobManager.js';
 import { schedulerService } from './services/schedulerService.js';
+import { deadlineService } from './services/deadlineService.js';
 
 // Load environment variables
 dotenv.config();
@@ -66,6 +67,7 @@ process.on('SIGTERM', async () => {
     await cronManager.stopAllJobs();
   }
   schedulerService.stop();
+  deadlineService.stop();
   process.exit(0);
 });
 
@@ -75,6 +77,7 @@ process.on('SIGINT', async () => {
     await cronManager.stopAllJobs();
   }
   schedulerService.stop();
+  deadlineService.stop();
   process.exit(0);
 });
 
@@ -165,6 +168,10 @@ async function startServer() {
     // Start goal progress scheduler
     schedulerService.start();
     console.log('✅ Goal progress scheduler started');
+
+    // Start deadline checker
+    deadlineService.start();
+    console.log('✅ Deadline checker started');
 
     // Start Express server
     app.listen(PORT, () => {

@@ -6,7 +6,7 @@ export class SchedulerService {
 
   /**
    * Start the progress update scheduler
-   * Updates all active goals every hour
+   * For hobby plan: Only runs on-demand, not continuously
    */
   start(): void {
     if (this.isRunning) {
@@ -14,18 +14,16 @@ export class SchedulerService {
       return;
     }
 
-    console.log('🚀 Starting goal progress scheduler...');
+    console.log('🚀 Goal progress scheduler initialized (on-demand mode for hobby plan)');
     
-    // Run immediately on start
-    this.runProgressUpdate();
-
-    // Then run every hour (3600000 ms)
-    this.intervalId = setInterval(() => {
-      this.runProgressUpdate();
-    }, 60 * 60 * 1000); // 1 hour
-
+    // For hobby plan: Don't run continuous intervals
+    // Instead, progress updates happen:
+    // 1. When users visit their dashboard
+    // 2. When users manually trigger updates
+    // 3. Daily deadline check (lightweight)
+    
     this.isRunning = true;
-    console.log('✅ Goal progress scheduler started (runs every hour)');
+    console.log('✅ Goal progress scheduler ready (on-demand mode)');
   }
 
   /**
