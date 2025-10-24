@@ -584,13 +584,14 @@ function FeaturedChallenges() {
       </h2>
       <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
         {challenges.map((challenge, i) => (
-          <motion.div
+          <motion.a
             key={challenge.id}
+            href={`/goals/${challenge.id}`}
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.5, delay: i * 0.15 }}
-            className="bg-dark border border-accent rounded-xl p-6 shadow-lg flex flex-col gap-4 hover:scale-105 hover:shadow-accent/40 transition-transform duration-300"
+            className="bg-dark border border-accent rounded-xl p-6 shadow-lg flex flex-col gap-4 hover:scale-105 hover:shadow-accent/40 transition-transform duration-300 cursor-pointer"
           >
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center border-2 border-accent/30">
@@ -600,7 +601,7 @@ function FeaturedChallenges() {
               </div>
               <div className="flex flex-col">
                 <span className="text-zinc-100 font-medium text-sm">
-                  {generateUserName(challenge.userAddress)}
+                  {/* {generateUserName(challenge.userAddress)} */}
                 </span>
                 <span className="text-zinc-400 text-xs">
                   {challenge.userAddress}
@@ -671,14 +672,11 @@ function FeaturedChallenges() {
                   {challenge.type}
                 </span>
               </div>
-              <a
-                href={`/goals/${challenge.id}`}
-                className="bg-accent text-dark rounded-lg px-4 py-2 font-semibold shadow hover:scale-105 transition text-sm"
-              >
+              <span className="bg-accent text-dark rounded-lg px-4 py-2 font-semibold shadow hover:scale-105 transition text-sm">
                 View Details
-              </a>
+              </span>
             </div>
-          </motion.div>
+          </motion.a>
         ))}
       </div>
 

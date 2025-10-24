@@ -277,8 +277,8 @@ router.get('/featured', async (req, res) => {
     
     // Filter for active goals only (client-side to avoid index)
     const activeGoals = allGoals
-      .filter(goal => goal.status === 'active')
-      .slice(0, limitNum);
+    .filter(goal => goal.status === 'active' || goal.status === 'completed')
+    .slice(0, limitNum);
 
     // Anonymize user addresses for privacy
     const featuredGoals = activeGoals.map(goal => ({
