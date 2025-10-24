@@ -120,17 +120,17 @@ function WalletConnectButton() {
 
   if (isConnected && address) {
     const isCorrectChain = chain?.id === baseSepolia.id;
-    
+
     return (
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-2 bg-accent/10 border border-accent rounded-lg px-4 py-2">
           <div
             className={`w-2 h-2 rounded-full ${
-              isCreatingUser 
-                ? "bg-yellow-400 animate-pulse" 
-                : isCorrectChain 
-                  ? "bg-green-400" 
-                  : "bg-orange-400"
+              isCreatingUser
+                ? "bg-yellow-400 animate-pulse"
+                : isCorrectChain
+                ? "bg-green-400"
+                : "bg-orange-400"
             }`}
           ></div>
           <div className="flex flex-col">
@@ -141,7 +141,9 @@ function WalletConnectButton() {
             </span>
             {!isCreatingUser && (
               <span className="text-xs text-zinc-400">
-                {isCorrectChain ? "Base Sepolia" : chain?.name || "Unknown Chain"}
+                {isCorrectChain
+                  ? "Base Sepolia"
+                  : chain?.name || "Unknown Chain"}
               </span>
             )}
           </div>
@@ -390,49 +392,188 @@ function HowItWorks() {
 }
 
 // Featured Challenges
-const challenges = [
-  {
-    title: "Run a Marathon",
-    Odds: "0.5",
-    deadline: "2024-08-01",
-    user: {
-      name: "Alex Chen",
-      avatar:
-        "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-    },
-  },
-  {
-    title: "30-Day Coding Streak",
-    Odds: "0.8",
-    deadline: "2024-07-15",
-    user: {
-      name: "Sarah Kim",
-      avatar:
-        "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
-    },
-  },
-  {
-    title: "Lose 10kg",
-    Odds: "0.1",
-    deadline: "2024-09-10",
-    user: {
-      name: "Mike Johnson",
-      avatar:
-        "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-    },
-  },
-  {
-    title: "Read 12 Books",
-    Odds: "0.5",
-    deadline: "2024-12-31",
-    user: {
-      name: "Emma Wilson",
-      avatar:
-        "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face",
-    },
-  },
-];
+interface FeaturedGoal {
+  id: string;
+  title: string;
+  description?: string;
+  category: "fitness" | "productivity" | "onchain";
+  type: string;
+  targetValue: number;
+  currentValue: number;
+  lockAmount: number;
+  currency: string;
+  deadline: string;
+  userAddress: string;
+  status: string;
+  createdAt: string;
+}
+
 function FeaturedChallenges() {
+  const [challenges, setChallenges] = useState<FeaturedGoal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch latest goals from backend
+  useEffect(() => {
+    const fetchLatestGoals = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/goals/latest?limit=4&status=active&timeframe=7d`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch goals");
+        }
+
+        const result = await response.json();
+        if (result.success && result.data?.goals) {
+          setChallenges(result.data.goals);
+        } else {
+          throw new Error(result.error || "No goals found");
+        }
+      } catch (err: any) {
+        console.error("Error fetching featured challenges:", err);
+        setError(err.message);
+        // Fallback to empty array to show "no challenges" state
+        setChallenges([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLatestGoals();
+  }, []);
+
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case "fitness":
+        return "🏃‍♂️";
+      case "productivity":
+        return "💻";
+      case "onchain":
+        return "⛓️";
+      default:
+        return "🎯";
+    }
+  };
+
+  const formatDeadline = (deadline: string) => {
+    try {
+      const date = new Date(deadline);
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch {
+      return "Invalid date";
+    }
+  };
+
+  const calculateProgress = (current: number, target: number) => {
+    return Math.min((current / target) * 100, 100);
+  };
+
+  const generateUserName = (address: string) => {
+    // Generate a consistent name from the address
+    const names = [
+      "Alex",
+      "Sarah",
+      "Mike",
+      "Emma",
+      "David",
+      "Lisa",
+      "John",
+      "Anna",
+    ];
+    const surnames = [
+      "Chen",
+      "Kim",
+      "Johnson",
+      "Wilson",
+      "Lee",
+      "Brown",
+      "Davis",
+      "Miller",
+    ];
+
+    // Use address to generate consistent index
+    const addressNum = parseInt(address.slice(2, 6), 16);
+    const nameIndex = addressNum % names.length;
+    const surnameIndex =
+      Math.floor(addressNum / names.length) % surnames.length;
+
+    return `${names[nameIndex]} ${surnames[surnameIndex]}`;
+  };
+
+  const generateAvatar = (address: string) => {
+    // Generate a consistent avatar from the address
+    const avatars = [
+      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
+      "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
+      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face",
+      "https://randomuser.me/api/portraits/men/32.jpg",
+      "https://randomuser.me/api/portraits/women/44.jpg",
+      "https://randomuser.me/api/portraits/men/22.jpg",
+      "https://randomuser.me/api/portraits/women/68.jpg",
+    ];
+
+    const addressNum = parseInt(address.slice(2, 6), 16);
+    return avatars[addressNum % avatars.length];
+  };
+
+  if (loading) {
+    return (
+      <section
+        id="explore"
+        className="bg-gradient-to-b from-dark to-primary py-20 px-4"
+      >
+        <h2 className="text-accent text-3xl md:text-4xl font-bold text-center mb-12">
+          Featured Challenges
+        </h2>
+        <div className="max-w-5xl mx-auto flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+            <p className="text-accent text-lg">Loading challenges...</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (error || challenges.length === 0) {
+    return (
+      <section
+        id="explore"
+        className="bg-gradient-to-b from-dark to-primary py-20 px-4"
+      >
+        <h2 className="text-accent text-3xl md:text-4xl font-bold text-center mb-12">
+          Featured Challenges
+        </h2>
+        <div className="max-w-5xl mx-auto text-center">
+          <div className="bg-dark border border-accent/30 rounded-xl p-8">
+            <p className="text-zinc-400 text-lg mb-4">
+              {error
+                ? "Unable to load challenges"
+                : "No active challenges found"}
+            </p>
+            <p className="text-zinc-500 mb-6">
+              Be the first to create a challenge and inspire others!
+            </p>
+            <a
+              href="/create"
+              className="inline-block bg-accent text-dark font-semibold rounded-lg px-6 py-3 hover:scale-105 transition-transform"
+            >
+              Create Challenge
+            </a>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section
       id="explore"
@@ -442,9 +583,9 @@ function FeaturedChallenges() {
         Featured Challenges
       </h2>
       <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-        {challenges.map((ch, i) => (
+        {challenges.map((challenge, i) => (
           <motion.div
-            key={i}
+            key={challenge.id}
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
@@ -452,33 +593,105 @@ function FeaturedChallenges() {
             className="bg-dark border border-accent rounded-xl p-6 shadow-lg flex flex-col gap-4 hover:scale-105 hover:shadow-accent/40 transition-transform duration-300"
           >
             <div className="flex items-center gap-3 mb-2">
-              <img
-                src={ch.user.avatar}
-                alt={ch.user.name}
-                className="w-10 h-10 rounded-full object-cover border-2 border-accent/30"
-              />
-              <span className="text-zinc-100 font-medium text-sm">
-                {ch.user.name}
-              </span>
+              <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center border-2 border-accent/30">
+                <span className="text-lg">
+                  {getCategoryIcon(challenge.category)}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-zinc-100 font-medium text-sm">
+                  {generateUserName(challenge.userAddress)}
+                </span>
+                <span className="text-zinc-400 text-xs">
+                  {challenge.userAddress}
+                </span>
+              </div>
             </div>
-            <h3 className="text-accent font-bold text-xl mb-2">{ch.title}</h3>
+
+            <h3 className="text-accent font-bold text-xl mb-2">
+              {challenge.title}
+            </h3>
+
+            {challenge.description && (
+              <p className="text-zinc-300 text-sm mb-2 line-clamp-2">
+                {challenge.description}
+              </p>
+            )}
+
             <div className="flex items-center justify-between text-zinc-100 text-sm mb-2">
               <span>
-                Odds: <span className="font-semibold">{ch.Odds}</span>
+                Stake:{" "}
+                <span className="font-semibold text-accent">
+                  {challenge.lockAmount} {challenge.currency}
+                </span>
               </span>
               <span>
-                Deadline: <span className="font-semibold">{ch.deadline}</span>
+                Deadline:{" "}
+                <span className="font-semibold">
+                  {formatDeadline(challenge.deadline)}
+                </span>
               </span>
             </div>
-            <a
-              href={`/challenge/${i + 1}`}
-              className="mt-auto bg-accent text-dark rounded-lg px-5 py-2 font-semibold shadow hover:scale-105 transition text-center"
-            >
-              Stake
-            </a>
+
+            {/* Progress bar */}
+            <div className="mb-3">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-zinc-400 text-xs">Progress</span>
+                <span className="text-zinc-400 text-xs">
+                  {challenge.currentValue}/{challenge.targetValue} (
+                  {Math.round(
+                    calculateProgress(
+                      challenge.currentValue,
+                      challenge.targetValue
+                    )
+                  )}
+                  %)
+                </span>
+              </div>
+              <div className="w-full bg-zinc-700 rounded-full h-2">
+                <div
+                  className="bg-gradient-to-r from-accent to-green-400 h-2 rounded-full transition-all"
+                  style={{
+                    width: `${calculateProgress(
+                      challenge.currentValue,
+                      challenge.targetValue
+                    )}%`,
+                  }}
+                ></div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-400 text-xs capitalize">
+                  {challenge.category}
+                </span>
+                <span className="text-zinc-500">•</span>
+                <span className="text-zinc-400 text-xs capitalize">
+                  {challenge.type}
+                </span>
+              </div>
+              <a
+                href={`/goals/${challenge.id}`}
+                className="bg-accent text-dark rounded-lg px-4 py-2 font-semibold shadow hover:scale-105 transition text-sm"
+              >
+                View Details
+              </a>
+            </div>
           </motion.div>
         ))}
       </div>
+
+      {challenges.length > 0 && (
+        <div className="text-center mt-8">
+          <a
+            href="/goals"
+            className="inline-block text-accent hover:text-accent/80 font-medium"
+          >
+            View All Challenges →
+          </a>
+        </div>
+      )}
     </section>
   );
 }

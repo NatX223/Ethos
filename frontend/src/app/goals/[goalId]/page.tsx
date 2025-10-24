@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import ProgressUpdateButton from "~/components/ProgressUpdateButton";
+import ClaimRewardButton from "~/components/ClaimRewardButton";
 
 interface Goal {
   id: string;
@@ -298,12 +299,26 @@ export default function GoalDetailsPage() {
                 </div>
               </div>
             </div>
-            {isOwner && goal.status === 'active' && (
-              <ProgressUpdateButton
-                goalId={goal.id}
-                onProgressUpdated={handleProgressUpdate}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              />
+            {isOwner && (
+              <div className="flex gap-3">
+                {goal.status === 'active' && (
+                  <ProgressUpdateButton
+                    goalId={goal.id}
+                    onProgressUpdated={handleProgressUpdate}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  />
+                )}
+                {goal.status === 'completed' && (
+                  <ClaimRewardButton
+                    goalId={goal.id}
+                    onRewardClaimed={(result) => {
+                      console.log('Reward claimed:', result);
+                      // TODO: Update goal status or refresh data
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  />
+                )}
+              </div>
             )}
           </div>
 
