@@ -18,6 +18,10 @@
 - **Recommended**: Use Railway, Render, or Heroku for full cron support
 - These platforms support persistent Node.js processes
 
+## ✅ Vercel Configuration Fixed
+
+The `vercel.json` is now properly configured to use `api/index.ts` as the entry point, which should resolve the "No Output Directory" error.
+
 ## Vercel Deployment Steps
 
 ### 1. Environment Variables
