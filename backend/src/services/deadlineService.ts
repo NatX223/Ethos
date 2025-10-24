@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import Goal from '../models/goal.js';
+import Goal, { IGoal } from '../models/goal.js';
 
 export class DeadlineService {
   private cronJob: cron.ScheduledTask | null = null;
@@ -75,7 +75,7 @@ export class DeadlineService {
 
       // Update expired goals to 'failed' status
       const updateResults = await Promise.allSettled(
-        expiredGoals.map(async (goal) => {
+        expiredGoals.map(async (goal: IGoal) => {
           try {
             // Update goal status to failed
             goal.status = 'failed';
@@ -85,7 +85,7 @@ export class DeadlineService {
               achieved: false,
               actualValue: goal.currentValue,
               verifiedAt: currentTime,
-              txHash: null // Will be set when blockchain transaction is made
+              txHash: undefined // Will be set when blockchain transaction is made
             };
 
             await goal.save();
@@ -106,7 +106,7 @@ export class DeadlineService {
             return {
               goalId: goal._id,
               title: goal.title,
-              error: error.message,
+              error: error instanceof Error ? error.message : 'Unknown error',
               success: false
             };
           }
@@ -114,11 +114,11 @@ export class DeadlineService {
       );
 
       // Process results
-      const successful = updateResults.filter(result => 
+      const successful = updateResults.filter((result): result is PromiseFulfilledResult<any> => 
         result.status === 'fulfilled' && result.value.success
       ).map(result => result.value);
 
-      const failed = updateResults.filter(result => 
+      const failed = updateResults.filter((result): result is PromiseRejectedResult | PromiseFulfilledResult<any> => 
         result.status === 'rejected' || 
         (result.status === 'fulfilled' && !result.value.success)
       );
@@ -131,21 +131,21 @@ export class DeadlineService {
       // Log details of failed goals
       if (successful.length > 0) {
         console.log('📋 Goals marked as failed:');
-        successful.forEach(goal => {
+        successful.forEach((goal: any) => {
           console.log(`  - "${goal.title}" (${goal.currentValue}/${goal.targetValue}) - User: ${goal.user?.email || 'Unknown'}`);
         });
       }
 
       if (failed.length > 0) {
         console.log('⚠️ Errors occurred while updating goals:');
-        failed.forEach(result => {
+        failed.forEach((result: any) => {
           const error = result.status === 'rejected' ? result.reason : result.value?.error;
           console.log(`  - Goal update failed: ${error}`);
         });
       }
 
     } catch (error) {
-      console.error('❌ Error in deadline checker:', error);
+      console.error('❌ Error in deadline checker:', error instanceof Error ? error.message : error);
     }
   }
 

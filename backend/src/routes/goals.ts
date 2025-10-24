@@ -819,7 +819,7 @@ router.post('/update-my-progress', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to update progress',
-      details: error.message
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -846,7 +846,7 @@ router.post('/check-deadlines', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to run deadline check',
-      details: error.message
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
