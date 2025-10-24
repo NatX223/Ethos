@@ -51,6 +51,7 @@ export class DeadlineService {
     // Run every 6 hours to save resources on hobby plan
     this.cronJob = cron.schedule('0 */6 * * *', async () => {
       await this.checkExpiredGoals();
+      await this.updateCriticalGoals();
     }, {
       scheduled: true,
       timezone: 'UTC'
@@ -280,6 +281,62 @@ export class DeadlineService {
         upcomingDeadlines: 0,
         nextCheckTime: null
       };
+    }
+  }
+
+  /**
+   * Update progress for goals that are expiring soon (within 48 hours)
+   * This gives goals a final chance to complete before deadline
+   */
+  private async updateCriticalGoals(): Promise<void> {
+    try {
+      console.log('🎯 Updating progress for critical goals (expiring within 48 hours)...');
+      
+      const now = new Date();
+      const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+
+      // Find active goals expiring within 48 hours
+      const criticalGoals = await firebaseService.queryDocuments<DeadlineGoal>('goals', (collection) =>
+        collection
+          .where('status', '==', 'active')
+          .where('deadline', '>', now)
+          .where('deadline', '<=', in48Hours)
+      );
+
+      if (criticalGoals.length === 0) {
+        console.log('✅ No critical goals found');
+        return;
+      }
+
+      console.log(`🚨 Found ${criticalGoals.length} critical goals, updating progress...`);
+
+      // Import progress service dynamically to avoid circular dependencies
+      const { progressService } = await import('./progressService.js');
+
+      let updated = 0;
+      let completed = 0;
+
+      for (const goal of criticalGoals) {
+        try {
+          if (goal.id) {
+            const result = await progressService.updateGoalProgress(goal.id);
+            if (result) {
+              updated++;
+              if (result.isCompleted) {
+                completed++;
+                console.log(`🎉 Critical goal "${goal.title}" completed just in time!`);
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Error updating critical goal ${goal.id}:`, error);
+        }
+      }
+
+      console.log(`✅ Critical goals update completed: ${updated} updated, ${completed} completed`);
+
+    } catch (error) {
+      console.error('❌ Error updating critical goals:', error);
     }
   }
 
