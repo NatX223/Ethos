@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { DailyVerificationJob } from './jobs/dailyVerificationJob.js';
 import { TokenCleanupJob } from './jobs/tokenCleanupJob.js';
 import { HealthCheckJob } from './jobs/healthCheckJob.js';
+import { firebaseService } from './firebaseService.js';
 
 export interface CronJob {
   name: string;
@@ -12,6 +13,7 @@ export interface CronJob {
   lastRun?: Date;
   nextRun?: Date;
   errorCount: number;
+  runOnce?: boolean; // For daily jobs that should only run once per day
 }
 
 export class CronJobManager {
@@ -33,18 +35,20 @@ export class CronJobManager {
         {
           name: 'daily-verification',
           schedule: '0 0 * * *', // Daily at midnight
-          task: () => this.dailyVerificationJob.execute(),
+          task: () => this.executeWithDailyCheck('daily-verification', () => this.dailyVerificationJob.execute()),
           enabled: process.env.ENABLE_DAILY_VERIFICATION !== 'false',
           running: false,
-          errorCount: 0
+          errorCount: 0,
+          runOnce: true
         },
         {
           name: 'token-cleanup',
           schedule: '0 2 * * *', // Daily at 2 AM
-          task: () => this.tokenCleanupJob.execute(),
+          task: () => this.executeWithDailyCheck('token-cleanup', () => this.tokenCleanupJob.execute()),
           enabled: process.env.ENABLE_TOKEN_CLEANUP !== 'false',
           running: false,
-          errorCount: 0
+          errorCount: 0,
+          runOnce: true
         },
         {
           name: 'health-check',
@@ -52,7 +56,8 @@ export class CronJobManager {
           task: () => this.healthCheckJob.execute(),
           enabled: process.env.ENABLE_HEALTH_CHECK !== 'false',
           running: false,
-          errorCount: 0
+          errorCount: 0,
+          runOnce: false // Health checks can run multiple times
         }
       ];
 
@@ -233,5 +238,107 @@ export class CronJobManager {
       console.error(`❌ Manual execution failed: ${jobName}`, error);
       throw error;
     }
+  }
+
+  // Check if a daily job has already run today
+  private async hasJobRunToday(jobName: string): Promise<boolean> {
+    try {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const docId = `${jobName}_${today}`;
+      
+      const jobLog = await firebaseService.getDocument('job_executions', docId);
+      return jobLog !== null && (jobLog as any)?.status === 'completed';
+    } catch (error) {
+      console.error(`Error checking job execution status for ${jobName}:`, error);
+      return false; // If we can't check, allow the job to run
+    }
+  }
+
+  // Mark a job as completed for today
+  private async markJobCompleted(jobName: string): Promise<void> {
+    try {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const docId = `${jobName}_${today}`;
+      
+      await firebaseService.createDocument('job_executions', {
+        jobName,
+        date: today,
+        timestamp: new Date(),
+        status: 'completed'
+      }, docId);
+    } catch (error) {
+      console.error(`Error marking job as completed for ${jobName}:`, error);
+    }
+  }
+
+  // Execute job with daily check to prevent duplicate runs
+  private async executeWithDailyCheck(jobName: string, taskFn: () => Promise<void>): Promise<void> {
+    // Check if job already ran today
+    const hasRun = await this.hasJobRunToday(jobName);
+    if (hasRun) {
+      console.log(`⏭️ Job ${jobName} already completed today, skipping...`);
+      return;
+    }
+
+    console.log(`🔄 Executing daily job: ${jobName}`);
+    
+    try {
+      await taskFn();
+      await this.markJobCompleted(jobName);
+      console.log(`✅ Daily job completed and logged: ${jobName}`);
+    } catch (error) {
+      console.error(`❌ Daily job failed: ${jobName}`, error);
+      throw error;
+    }
+  }
+
+  // Get job execution history
+  async getJobExecutionHistory(jobName: string, days: number = 7): Promise<any[]> {
+    try {
+      const history: any[] = [];
+      const today = new Date();
+      
+      for (let i = 0; i < days; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        const docId = `${jobName}_${dateStr}`;
+        
+        const jobLog = await firebaseService.getDocument('job_executions', docId);
+        if (jobLog) {
+          history.push({
+            date: dateStr,
+            ...jobLog
+          });
+        }
+      }
+      
+      return history.reverse(); // Oldest first
+    } catch (error) {
+      console.error(`Error getting job execution history for ${jobName}:`, error);
+      return [];
+    }
+  }
+
+  // Check for missed daily jobs on startup
+  async checkMissedJobs(): Promise<void> {
+    console.log('🔍 Checking for missed daily jobs...');
+    
+    const today = new Date().toISOString().split('T')[0];
+    const dailyJobs = Array.from(this.jobs.values())
+      .filter(jobInfo => jobInfo.job.runOnce && jobInfo.job.enabled);
+
+    for (const jobInfo of dailyJobs) {
+      const jobName = jobInfo.job.name;
+      const hasRun = await this.hasJobRunToday(jobName);
+      
+      if (!hasRun) {
+        console.log(`⚠️ Daily job ${jobName} hasn't run today, will execute on next scheduled time`);
+      } else {
+        console.log(`✅ Daily job ${jobName} already completed today`);
+      }
+    }
+    
+    console.log('✅ Missed job check completed');
   }
 }

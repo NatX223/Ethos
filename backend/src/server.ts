@@ -1,16 +1,17 @@
-import express from 'express';
+import express, { Request, Response, NextFunction, ErrorRequestHandler } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
+
 // Fallback middleware definitions
-const fallbackRequestLogger = (req: any, res: any, next: any) => {
+const fallbackRequestLogger = (req: Request, res: Response, next: NextFunction) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
   next();
 };
 
-const fallbackErrorHandler = (err: any, req: any, res: any, next: any) => {
+const fallbackErrorHandler: ErrorRequestHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Error:', err.message);
   res.status(err.status || 500).json({
     success: false,
@@ -87,6 +88,7 @@ async function startServer() {
     let corsOptions = fallbackCorsOptions;
 
     try {
+      // @ts-ignore - Dynamic import of JS middleware file
       const middleware = await import('./middleware/auth.js');
       errorHandler = middleware.errorHandler;
       requestLogger = middleware.requestLogger;
@@ -103,7 +105,7 @@ async function startServer() {
     app.use(requestLogger);
 
     // Health check endpoint
-    app.get('/health', (req, res) => {
+    app.get('/health', (req: Request, res: Response) => {
       res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
@@ -136,11 +138,12 @@ async function startServer() {
       loadRoute('/api/auth', 'auth'),
       loadRoute('/api/users', 'users'), 
       loadRoute('/api/goals', 'goals'),
-      loadRoute('/api/oauth', 'oauth')
+      loadRoute('/api/oauth', 'oauth'),
+      loadRoute('/api/admin', 'admin')
     ]);
 
     // 404 handler
-    app.use('*', (req, res) => {
+    app.use('*', (req: Request, res: Response) => {
       res.status(404).json({
         success: false,
         error: 'Route not found'
@@ -160,7 +163,19 @@ async function startServer() {
     // Initialize and start cron jobs
     cronManager = new CronJobManager();
     await cronManager.initializeJobs();
-    console.log('✅ Cron jobs initialized');
+    
+    // Check for any missed daily jobs on startup
+    await cronManager.checkMissedJobs();
+    console.log('✅ Cron jobs initialized and checked for missed executions');
+
+    // Set cron manager for admin routes
+    try {
+      const { setCronManager } = await import('./routes/admin.js');
+      setCronManager(cronManager);
+      console.log('✅ Admin routes configured with cron manager');
+    } catch (error) {
+      console.log('⚠️ Admin routes not available');
+    }
 
     // Start goal progress scheduler
     schedulerService.start();
