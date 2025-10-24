@@ -1,5 +1,36 @@
 import cron from 'node-cron';
-import Goal, { IGoal } from '../models/goal.js';
+import { firebaseService } from './firebaseService.js';
+
+// Goal interface for deadline service (independent of model)
+interface DeadlineGoal {
+  id?: string;
+  title: string;
+  userAddress: string;
+  currentValue: number;
+  targetValue: number;
+  deadline: Date;
+  status: 'active' | 'completed' | 'failed' | 'pending_verification' | 'cancelled';
+  verificationResult?: {
+    achieved: boolean;
+    actualValue: number;
+    verifiedAt: Date;
+    txHash?: string;
+    verificationMethod?: string;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface DeadlineCheckResult {
+  goalId: string;
+  title: string;
+  userAddress: string;
+  deadline: Date;
+  currentValue: number;
+  targetValue: number;
+  success: boolean;
+  error?: string;
+}
 
 export class DeadlineService {
   private cronJob: cron.ScheduledTask | null = null;
@@ -7,7 +38,7 @@ export class DeadlineService {
 
   /**
    * Start the deadline checker cron job
-   * Runs daily at midnight (00:00) to check for expired goals
+   * Runs every 6 hours to check for expired goals
    */
   start(): void {
     if (this.isRunning) {
@@ -17,19 +48,16 @@ export class DeadlineService {
 
     console.log('🚀 Starting deadline checker cron job...');
     
-    // For hobby plan: Run less frequently to save resources
-    // Check every 6 hours instead of hourly progress updates
+    // Run every 6 hours to save resources on hobby plan
     this.cronJob = cron.schedule('0 */6 * * *', async () => {
       await this.checkExpiredGoals();
-      // Also check for goals expiring soon (next 24 hours)
-      await this.checkUpcomingDeadlines();
     }, {
       scheduled: true,
-      timezone: 'UTC' // You can change this to your preferred timezone
+      timezone: 'UTC'
     });
 
     this.isRunning = true;
-    console.log('✅ Deadline checker started (runs daily at midnight UTC)');
+    console.log('✅ Deadline checker started (runs every 6 hours UTC)');
   }
 
   /**
@@ -54,133 +82,225 @@ export class DeadlineService {
   /**
    * Check for goals that have passed their deadline and update their status
    */
-  async checkExpiredGoals(): Promise<void> {
+  async checkExpiredGoals(): Promise<DeadlineCheckResult[]> {
     try {
       console.log('🔍 Checking for expired goals...');
       const startTime = Date.now();
       const currentTime = new Date();
 
       // Find all active goals where deadline has passed
-      const expiredGoals = await Goal.find({
-        status: 'active',
-        deadline: { $lt: currentTime }
-      }).populate('user', 'email username');
+      const expiredGoals = await firebaseService.queryDocuments<DeadlineGoal>('goals', (collection) =>
+        collection
+          .where('status', '==', 'active')
+          .where('deadline', '<', currentTime)
+      );
 
       if (expiredGoals.length === 0) {
         console.log('✅ No expired goals found');
-        return;
+        return [];
       }
 
       console.log(`📋 Found ${expiredGoals.length} expired goals`);
 
       // Update expired goals to 'failed' status
-      const updateResults = await Promise.allSettled(
-        expiredGoals.map(async (goal: IGoal) => {
-          try {
-            // Update goal status to failed
-            goal.status = 'failed';
-            
-            // Add verification result with failure info
-            goal.verificationResult = {
-              achieved: false,
-              actualValue: goal.currentValue,
-              verifiedAt: currentTime,
-              txHash: undefined // Will be set when blockchain transaction is made
-            };
-
-            await goal.save();
-
-            console.log(`❌ Goal "${goal.title}" (ID: ${goal._id}) marked as failed - deadline passed`);
-            
-            return {
-              goalId: goal._id,
-              title: goal.title,
-              user: goal.user,
-              deadline: goal.deadline,
-              currentValue: goal.currentValue,
-              targetValue: goal.targetValue,
-              success: true
-            };
-          } catch (error) {
-            console.error(`❌ Error updating goal ${goal._id}:`, error);
-            return {
-              goalId: goal._id,
-              title: goal.title,
-              error: error instanceof Error ? error.message : 'Unknown error',
-              success: false
-            };
+      const results: DeadlineCheckResult[] = [];
+      
+      for (const goal of expiredGoals) {
+        try {
+          if (!goal.id) {
+            console.error('❌ Goal missing ID, skipping');
+            continue;
           }
-        })
-      );
 
-      // Process results
-      const successful = updateResults.filter((result): result is PromiseFulfilledResult<any> => 
-        result.status === 'fulfilled' && result.value.success
-      ).map(result => result.value);
+          // Update goal status to failed with comprehensive verification result
+          await firebaseService.updateDocument('goals', goal.id, {
+            status: 'failed',
+            verificationResult: {
+              achieved: false,
+              actualValue: goal.currentValue || 0,
+              verifiedAt: currentTime,
+              txHash: '', // Will be set when blockchain transaction is made
+              verificationMethod: 'deadline_expired'
+            },
+            updatedAt: currentTime
+          });
 
-      const failed = updateResults.filter((result): result is PromiseRejectedResult | PromiseFulfilledResult<any> => 
-        result.status === 'rejected' || 
-        (result.status === 'fulfilled' && !result.value.success)
-      );
+          console.log(`❌ Goal "${goal.title}" (ID: ${goal.id}) marked as failed - deadline passed`);
+          
+          results.push({
+            goalId: goal.id,
+            title: goal.title,
+            userAddress: goal.userAddress,
+            deadline: goal.deadline,
+            currentValue: goal.currentValue || 0,
+            targetValue: goal.targetValue,
+            success: true
+          });
+
+        } catch (error) {
+          console.error(`❌ Error updating goal ${goal.id}:`, error);
+          
+          results.push({
+            goalId: goal.id || 'unknown',
+            title: goal.title || 'Unknown Goal',
+            userAddress: goal.userAddress || 'unknown',
+            deadline: goal.deadline,
+            currentValue: goal.currentValue || 0,
+            targetValue: goal.targetValue || 0,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      // Process and log results
+      const successful = results.filter(r => r.success);
+      const failed = results.filter(r => !r.success);
 
       const duration = Date.now() - startTime;
       
       console.log(`✅ Deadline check completed in ${duration}ms`);
       console.log(`📊 Results: ${successful.length} goals marked as failed, ${failed.length} errors`);
 
-      // Log details of failed goals
+      // Log details of successfully failed goals
       if (successful.length > 0) {
         console.log('📋 Goals marked as failed:');
-        successful.forEach((goal: any) => {
-          console.log(`  - "${goal.title}" (${goal.currentValue}/${goal.targetValue}) - User: ${goal.user?.email || 'Unknown'}`);
+        successful.forEach(goal => {
+          const progress = `${goal.currentValue}/${goal.targetValue}`;
+          const deadlineStr = new Date(goal.deadline).toISOString().split('T')[0];
+          console.log(`  - "${goal.title}" (${progress}) - Deadline: ${deadlineStr} - User: ${goal.userAddress}`);
         });
       }
 
+      // Log errors if any
       if (failed.length > 0) {
         console.log('⚠️ Errors occurred while updating goals:');
-        failed.forEach((result: any) => {
-          const error = result.status === 'rejected' ? result.reason : result.value?.error;
-          console.log(`  - Goal update failed: ${error}`);
+        failed.forEach(result => {
+          console.log(`  - Goal "${result.title}": ${result.error}`);
         });
       }
+
+      return results;
 
     } catch (error) {
       console.error('❌ Error in deadline checker:', error instanceof Error ? error.message : error);
+      return [];
+    }
+  }
+
+  /**
+   * Check for goals expiring in the next 24 hours (for early warning)
+   */
+  async checkUpcomingDeadlines(): Promise<DeadlineGoal[]> {
+    try {
+      console.log('📅 Checking for goals expiring in next 24 hours...');
+      
+      const now = new Date();
+      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+      const upcomingGoals = await firebaseService.queryDocuments<DeadlineGoal>('goals', (collection) =>
+        collection
+          .where('status', '==', 'active')
+          .where('deadline', '>', now)
+          .where('deadline', '<=', tomorrow)
+      );
+
+      if (upcomingGoals.length > 0) {
+        console.log(`⚠️ Found ${upcomingGoals.length} goals expiring in next 24 hours:`);
+        upcomingGoals.forEach(goal => {
+          const deadlineStr = new Date(goal.deadline).toISOString();
+          const progress = `${goal.currentValue}/${goal.targetValue}`;
+          console.log(`  - "${goal.title}" (${progress}) - Expires: ${deadlineStr}`);
+        });
+      } else {
+        console.log('✅ No goals expiring in next 24 hours');
+      }
+
+      return upcomingGoals;
+
+    } catch (error) {
+      console.error('❌ Error checking upcoming deadlines:', error);
+      return [];
     }
   }
 
   /**
    * Run a manual deadline check (for testing)
    */
-  async runManualCheck(): Promise<void> {
+  async runManualCheck(): Promise<DeadlineCheckResult[]> {
     console.log('🔧 Running manual deadline check...');
-    await this.checkExpiredGoals();
+    return await this.checkExpiredGoals();
   }
 
   /**
-   * Check for goals expiring in next 24 hours and update them
+   * Get statistics about deadline checking
    */
-  async checkUpcomingDeadlines(): Promise<void> {
+  async getDeadlineStats(): Promise<{
+    activeGoals: number;
+    expiredGoals: number;
+    upcomingDeadlines: number;
+    nextCheckTime: Date | null;
+  }> {
     try {
-      const { smartUpdateService } = await import('./smartUpdateService.js');
-      await smartUpdateService.checkUpcomingDeadlines();
+      const now = new Date();
+      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+      // Count active goals
+      const activeGoals = await firebaseService.queryDocuments<DeadlineGoal>('goals', (collection) =>
+        collection.where('status', '==', 'active')
+      );
+
+      // Count expired goals (should be 0 if deadline checker is working)
+      const expiredGoals = await firebaseService.queryDocuments<DeadlineGoal>('goals', (collection) =>
+        collection
+          .where('status', '==', 'active')
+          .where('deadline', '<', now)
+      );
+
+      // Count upcoming deadlines
+      const upcomingGoals = await firebaseService.queryDocuments<DeadlineGoal>('goals', (collection) =>
+        collection
+          .where('status', '==', 'active')
+          .where('deadline', '>', now)
+          .where('deadline', '<=', tomorrow)
+      );
+
+      return {
+        activeGoals: activeGoals.length,
+        expiredGoals: expiredGoals.length,
+        upcomingDeadlines: upcomingGoals.length,
+        nextCheckTime: this.getNextRunTime()
+      };
+
     } catch (error) {
-      console.error('❌ Error checking upcoming deadlines:', error);
+      console.error('❌ Error getting deadline stats:', error);
+      return {
+        activeGoals: 0,
+        expiredGoals: 0,
+        upcomingDeadlines: 0,
+        nextCheckTime: null
+      };
     }
   }
 
   /**
    * Get next scheduled run time
    */
-  getNextRun(): Date | null {
-    if (!this.cronJob) return null;
+  private getNextRunTime(): Date | null {
+    if (!this.cronJob || !this.isRunning) return null;
     
     // Calculate next 6-hour interval
     const now = new Date();
-    const nextRun = new Date(now);
     const currentHour = now.getUTCHours();
     const nextInterval = Math.ceil((currentHour + 1) / 6) * 6;
-    nextRun.setUTCHours(nextInterval, 0, 0, 0);
+    
+    const nextRun = new Date(now);
+    if (nextInterval >= 24) {
+      nextRun.setUTCDate(nextRun.getUTCDate() + 1);
+      nextRun.setUTCHours(0, 0, 0, 0);
+    } else {
+      nextRun.setUTCHours(nextInterval, 0, 0, 0);
+    }
     
     return nextRun;
   }
