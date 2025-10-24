@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/daily-verification",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/token-cleanup", 
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
