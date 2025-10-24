@@ -8,33 +8,33 @@ export const authenticateToken = async (req, res, next) => {
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
     if (!token) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         success: false,
-        error: 'Access token required' 
+        error: 'Access token required'
       });
     }
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
-    
+
     // Find user by ID from token
     const user = await User.findById(decoded.userId).select('-password');
     if (!user) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         success: false,
-        error: 'User not found' 
+        error: 'User not found'
       });
     }
 
     // Attach user to request object
     req.user = user;
     next();
-    
+
   } catch (error) {
     console.error('Auth middleware error:', error);
-    return res.status(403).json({ 
+    return res.status(403).json({
       success: false,
-      error: 'Invalid or expired token' 
+      error: 'Invalid or expired token'
     });
   }
 };
@@ -62,8 +62,8 @@ export const optionalAuth = async (req, res, next) => {
 // Generate JWT token (utility function)
 export const generateToken = (userId) => {
   return jwt.sign(
-    { userId }, 
-    process.env.JWT_SECRET || 'fallback-secret', 
+    { userId },
+    process.env.JWT_SECRET || 'fallback-secret',
     { expiresIn: '30d' }
   );
 };
@@ -77,7 +77,7 @@ export const requestLogger = (req, res, next) => {
 // Error handler middleware
 export const errorHandler = (err, req, res, next) => {
   console.error('Error:', err.message);
-  
+
   // Mongoose validation error
   if (err.name === 'ValidationError') {
     const messages = Object.values(err.errors).map(val => val.message);
@@ -86,7 +86,7 @@ export const errorHandler = (err, req, res, next) => {
       error: messages.join(', ')
     });
   }
-  
+
   // Mongoose duplicate key error
   if (err.code === 11000) {
     const field = Object.keys(err.keyValue)[0];
@@ -95,7 +95,7 @@ export const errorHandler = (err, req, res, next) => {
       error: `${field} already exists`
     });
   }
-  
+
   // JWT errors
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
@@ -103,7 +103,7 @@ export const errorHandler = (err, req, res, next) => {
       error: 'Invalid token'
     });
   }
-  
+
   if (err.name === 'TokenExpiredError') {
     return res.status(401).json({
       success: false,
@@ -123,19 +123,19 @@ export const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
+
     // Allow all origins in development
     if (process.env.NODE_ENV === 'development') {
       return callback(null, true);
     }
-    
+
     // In production, you can specify allowed origins
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:3001',
       'https://yourapp.com'
     ];
-    
+
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {

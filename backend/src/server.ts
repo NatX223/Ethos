@@ -84,7 +84,7 @@ async function startServer() {
     // Load middleware
     let errorHandler = fallbackErrorHandler;
     let requestLogger = fallbackRequestLogger;
-    let corsOptions = fallbackCorsOptions;
+    let corsOptions: any = fallbackCorsOptions;
 
     try {
       const middleware = await import('./middleware/auth.js');
