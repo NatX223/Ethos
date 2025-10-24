@@ -1,6 +1,6 @@
 import express from 'express';
 import axios from 'axios';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { firebaseService } from '../services/firebaseService.js';
 
 const router = express.Router();
@@ -58,7 +58,7 @@ router.post('/initiate', async (req, res) => {
     }
 
     // Generate state parameter for security
-    const state = uuidv4();
+    const state = randomUUID();
     oauthStates.set(state, {
       walletAddress: walletAddress.toLowerCase(),
       provider,
@@ -76,7 +76,7 @@ router.post('/initiate', async (req, res) => {
     } else if (provider === 'strava') {
       clientId = process.env.STRAVA_CLIENT_ID!;
       redirectUri = process.env.STRAVA_REDIRECT_URI!;
-      authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=read&state=${state}`;
+      authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=read,activity:read_all&state=${state}`;
     }
 
     res.json({
@@ -212,7 +212,7 @@ router.get('/callback/strava', async (req, res) => {
       grant_type: 'authorization_code'
     });
 
-    const { access_token, athlete } = tokenResponse.data;
+    const { access_token, refresh_token, expires_at, athlete } = tokenResponse.data;
 
     if (!access_token || !athlete) {
       return res.status(400).json({
@@ -226,7 +226,9 @@ router.get('/callback/strava', async (req, res) => {
       'connectedAccounts.strava': {
         username: athlete.username || `${athlete.firstname} ${athlete.lastname}`,
         athleteId: athlete.id.toString(),
-        connectedAt: new Date(),
+        accessToken: access_token, // Store the access token
+        refreshToken: refresh_token, // Store the refresh token
+        expiresAt: expires_at ? new Date(expires_at * 1000) : null, // Convert Unix timestamp to Date
         lastSyncAt: new Date(),
         isActive: true
       },
@@ -300,6 +302,9 @@ router.post('/disconnect', async (req, res) => {
       updateData['connectedAccounts.strava'] = {
         username: '',
         athleteId: '',
+        accessToken: '',
+        refreshToken: '',
+        expiresAt: null,
         isActive: false
       };
     }
