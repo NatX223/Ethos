@@ -9,7 +9,7 @@ async function main() {
     console.log("Deploying with address:", ownerAddress);
 
     const GoalFactory = await ethers.getContractFactory('GoalFactory', signer);
-    const goalfactory = await GoalFactory.deploy(settlers, "0x9fB1005DF6A157387E92727Abe8C550405c31779");
+    const goalfactory = await GoalFactory.deploy(settlers, "0xc54FfB00e1C630f0D7a72ECBCDA043883a0f690e");
     const goalfactoryAddress = await goalfactory.getAddress();
 
     console.log(`goal factory deployed to: ${goalfactoryAddress}`);

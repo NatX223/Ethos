@@ -85,7 +85,7 @@ contract Goal is ReentrancyGuard {
 
     function settleGoal(
         uint256 score
-    ) external onlySettler afterDeadline notSettled {
+    ) external onlySettler notSettled {
         isSettled = true;
         uint256 userShare;
         uint256 remainder;
