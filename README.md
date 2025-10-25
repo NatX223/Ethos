@@ -11,6 +11,7 @@ Base Batches 002 application
 - [Technologies Used](#technologies-used)
 - [Weekly Reward System](#weekly-reward-system)
 - [Contract Flow Interaction](#contract-flow-interaction)
+- [Contracts and Transactions](#contracts-and-transactions)
 - [Setup and Deployment](#setup-and-deployment)
 - [Production Deployment](#production-deployment)
 - [Future Improvements](#future-improvements)
@@ -22,27 +23,20 @@ Base Batches 002 application
 
 Ethos is a cross-chain staking and donation protocol that transforms traditional DeFi into a purpose-driven experience. Built for Base Ecosystem, Ethos enables users to stake assets while supporting goal achievement and charitable causes.
 
-Our motto **"Stake with Purpose"** reflects our mission to make every financial transaction create positive social impact.
+Our motto **"Bet on yourself, that's the ethos"** reflects our mission to make every financial transaction create positive social impact.
 
 ## Problem Statement
 
-The current DeFi landscape lacks meaningful social impact integration. Traditional staking protocols focus solely on financial returns, missing opportunities to:
-
-- Align financial incentives with personal growth and social good
-- Provide verifiable accountability for goal achievement  
-- Create transparent donation mechanisms within DeFi
-- Bridge multiple blockchain ecosystems for broader impact
-
-Users want their crypto investments to do more than just generate yield—they want to support causes they care about and be accountable to their personal goals.
+Many people struggle to stay consistent with their personal or fitness goals because there’s little accountability or tangible consequence for giving up midway.
 
 ## Solution
 
 Ethos introduces a novel cross-chain protocol where:
 
-- **Users stake ETH or FLOW** to commit to personal goals
+- **Users lock ETH** to commit to personal goals
 - **Automated verification** tracks progress using real-world data (GitHub, Strava, on-chain activity)
-- **Smart yield distribution** rewards goal achievement while funding charitable causes
-- **Multi-chain architecture** ensures broad accessibility across Ethereum and Flow ecosystems
+- **Reward distribution** rewards goal achievement by redistributing lock funds 
+back to the community(from those that did not acheive their goals)
 
 Our hybrid validation system combines backend efficiency with blockchain transparency, creating a seamless user experience while maintaining verifiable on-chain results.
 
@@ -51,64 +45,14 @@ Our hybrid validation system combines backend efficiency with blockchain transpa
 ### 1. User Onboarding & Goal Setting
 
 User Flow:
-1. Connect Ethereum wallet
+1. Connect Base wallet/account
 2. Deploy individual Goal contract
-3. Initialize with deadline, target, and stake ETH
-4. Wait for settlement at deadline
-
+3. Initialize with deadline, target, and lock ETH
+4. Wait for settlement at deadline or when the goal target is met
 
 ### 2. Smart Contract Architecture
 
-```solidity
-contract Goal is ReentrancyGuard {
-    address public author;
-    address public settler;
-    uint256 public amount;
-    address public rewardManager;
-    uint256 public week;
-    uint256 public deadline;
-    uint256 public target;
-    bool public isSettled;
-
-    function initialize(uint256 _deadline, uint256 _target) external payable;
-    function settleGoal(uint256 score) external onlySettler afterDeadline notSettled;
-} 
-
-2. Reward Manager 
-
-contract RewardManager {
-    mapping(uint256 => uint256) public weeklyRewardAmount;
-    mapping(address => mapping(uint256 => bool)) public userEligibility;
-    mapping(uint256 => uint256) public weeklyWinnerCount;
-    
-    function updateWeeklyWinnerCount(address _user, uint256 _week) external;
-    function updateWeeklyReward(uint256 _week, uint256 _amount) external;
-}
-
-3. Goal Settlement Logic
-
-function settleGoal(uint256 score) external onlySettler afterDeadline notSettled {
-    uint256 balance = address(this).balance;
-    
-    if (score >= target) {
-        // Full success: 100% refund + winner status
-        payable(author).transfer(balance);
-        IRewardManager(rewardManager).updateWeeklyWinnerCount(author, week);
-    } else {
-        // Partial success: proportional refund
-        uint256 completion = (score * 1e18) / target;
-        uint256 userShare = (balance * completion) / 1e18;
-        uint256 remainder = balance - userShare;
-
-        if (userShare > 0) payable(author).transfer(userShare);
-        if (remainder > 0) {
-            payable(rewardManager).transfer(remainder);
-            IRewardManager(rewardManager).updateWeeklyReward(week, remainder);
-        }
-    }
-    isSettled = true;
-} 
-```
+![protocol architecture](/architecture.jpg)
 
 ### Technologies Used
 ```
@@ -118,14 +62,13 @@ BASE network deployment
 Hardhat development framework
 Backend & Infrastructure
 Node.js with Express server
-Firebase for data management
+Firedtore database
 REST APIs for external data integration
 Setup and Deployment
 Prerequisites
 Node.js 16+
 Git
-Alchemy/Infura account
-Ethereum wallet
+Base wallet/account
 ```
 
 ### Weekly Reward System
@@ -154,6 +97,22 @@ Settler ─┼─► Goal.settleGoal(score) ──┐
          │                                                                   │
          └─► RewardManager ──► Weekly reward distribution to winners ◄───────┘
 ```
+
+## Contracts and Transactions
+
+| **Contract**        | **Address**                                |
+|---------------------|--------------------------------------------|
+| **RewardManager**   | 0xc54FfB00e1C630f0D7a72ECBCDA043883a0f690e |
+| **Goal Factory**    | 0xaCe5f44b583158201BF7F56320122D5d59A398Bf |
+| **Goal Contract**   | 0xf368A0e667D84937be9e6A19Ef211dE454Cc88ae |
+
+| **TX type**         | **TX example**                                                                                     |
+|---------------------|----------------------------------------------------------------------------------------------------|
+| **Deploy Goal**     | https://sepolia.basescan.org/tx/0x67e8a09a0a88c890428e4f5952b24631bb3ed37249ce6a24b95713a3fc40e4e3 |
+| **Initialize Goal** | https://sepolia.basescan.org/tx/0xb86b066044b53fae53c80b2f646a51785322ad1057cdad4d917cadc19282d448 |
+<!-- | **Settle Goal**     | https://basescan.org/tx/0x2fbe7296144752550939a15f3ac8d49b0f80d3df0b6498d9a81301a1abf7872f |
+| **Claim Reward**    | https://basescan.org/tx/0x2fbe7296144752550939a15f3ac8d49b0f80d3df0b6498d9a81301a1abf7872f | -->
+
 
 ## Setup and Deployment
 ```
