@@ -1,6 +1,7 @@
 import { firebaseService } from './firebaseService.js';
 import { githubService } from './githubService.js';
 import { stravaService } from './stravaService.js';
+import { blockchainService } from './blockchainService.js';
 
 interface Goal {
   id?: string;
@@ -154,14 +155,38 @@ export class ProgressService {
       // Check if goal is completed
       const isCompleted = newValue >= goal.targetValue;
       if (isCompleted && goal.status === 'active') {
-        updateData.status = 'completed';
-        updateData.verificationResult = {
-          achieved: true,
-          actualValue: newValue,
-          verifiedAt: new Date(),
-          txHash: '', // Will be filled when smart contract is settled
-          verificationMethod: goal.dataSource?.type || 'manual'
-        };
+        console.log(`🎉 Goal ${goalId} completed! Settling on blockchain...`);
+        
+        try {
+          // Settle the goal on the blockchain
+          const settlementTxHash = await blockchainService.settleGoal(
+            goal.contractAddress,
+            newValue
+          );
+
+          updateData.status = 'completed';
+          updateData.verificationResult = {
+            achieved: true,
+            actualValue: newValue,
+            verifiedAt: new Date(),
+            txHash: settlementTxHash,
+            verificationMethod: goal.dataSource?.type || 'manual'
+          };
+
+          console.log(`✅ Goal ${goalId} settled on blockchain with tx: ${settlementTxHash}`);
+        } catch (settlementError) {
+          console.error(`❌ Failed to settle goal ${goalId} on blockchain:`, settlementError);
+          
+          // Still mark as completed in database, but without settlement tx
+          updateData.status = 'pending_verification';
+          updateData.verificationResult = {
+            achieved: true,
+            actualValue: newValue,
+            verifiedAt: new Date(),
+            txHash: '', // Empty since settlement failed
+            verificationMethod: goal.dataSource?.type || 'manual'
+          };
+        }
       }
 
       await firebaseService.updateDocument('goals', goalId, updateData);
@@ -465,6 +490,57 @@ export class ProgressService {
     } catch (error) {
       console.error('❌ Error in batch progress update:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Manually settle a completed goal on the blockchain
+   */
+  async settleCompletedGoal(goalId: string): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    try {
+      const goal = await firebaseService.getDocument<Goal>('goals', goalId);
+      if (!goal) {
+        return { success: false, error: 'Goal not found' };
+      }
+
+      // Check if goal is completed but not settled
+      if (goal.status !== 'completed' && goal.status !== 'pending_verification') {
+        return { success: false, error: 'Goal is not completed' };
+      }
+
+      // Check if already settled on blockchain
+      if (goal.verificationResult?.txHash) {
+        return { success: false, error: 'Goal already settled on blockchain' };
+      }
+
+      // Check if contract is already settled
+      const isAlreadySettled = await blockchainService.isGoalSettled(goal.contractAddress);
+      if (isAlreadySettled) {
+        return { success: false, error: 'Goal contract is already settled' };
+      }
+
+      // Settle on blockchain
+      const settlementTxHash = await blockchainService.settleGoal(
+        goal.contractAddress,
+        goal.currentValue
+      );
+
+      // Update the goal with settlement transaction
+      await firebaseService.updateDocument('goals', goalId, {
+        status: 'completed',
+        'verificationResult.txHash': settlementTxHash,
+        updatedAt: new Date()
+      });
+
+      console.log(`✅ Manually settled goal ${goalId} with tx: ${settlementTxHash}`);
+      return { success: true, txHash: settlementTxHash };
+
+    } catch (error) {
+      console.error(`❌ Error manually settling goal ${goalId}:`, error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
     }
   }
 

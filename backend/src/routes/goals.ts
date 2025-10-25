@@ -915,4 +915,151 @@ router.post('/check-deadlines', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/goals/:goalId/settle
+ * Manually settle a completed goal on the blockchain
+ */
+router.post('/:goalId/settle', async (req, res) => {
+  try {
+    const { goalId } = req.params;
+    const { userAddress, adminKey } = req.body;
+
+    // Validate admin key for manual settlement
+    if (adminKey !== process.env.ADMIN_API_KEY) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized - admin key required for manual settlement'
+      });
+    }
+
+    // Validate user address if provided
+    if (userAddress && !/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user address format'
+      });
+    }
+
+    // Settle the goal
+    const result = await progressService.settleCompletedGoal(goalId);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Goal settled successfully on blockchain',
+        data: {
+          goalId,
+          txHash: result.txHash
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'Failed to settle goal'
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Error settling goal:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to settle goal',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
+/**
+ * POST /api/goals/settle-batch
+ * Settle all completed goals that haven't been settled on blockchain yet
+ */
+router.post('/settle-batch', async (req, res) => {
+  try {
+    const { adminKey } = req.body;
+
+    // Validate admin key
+    if (adminKey !== process.env.ADMIN_API_KEY) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized - admin key required'
+      });
+    }
+
+    console.log('🔄 Starting batch settlement of completed goals...');
+
+    // Get all completed goals that haven't been settled on blockchain
+    const completedGoals = await firebaseService.queryDocuments<Goal>('goals', (collection) =>
+      collection
+        .where('status', 'in', ['completed', 'pending_verification'])
+    );
+
+    // Filter goals that don't have settlement transaction
+    const unsettledGoals = completedGoals.filter(goal => 
+      !goal.verificationResult?.txHash || goal.verificationResult.txHash === ''
+    );
+
+    console.log(`Found ${unsettledGoals.length} completed goals to settle`);
+
+    const results = [];
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Settle each goal
+    for (const goal of unsettledGoals) {
+      if (goal.id) {
+        try {
+          const result = await progressService.settleCompletedGoal(goal.id);
+          results.push({
+            goalId: goal.id,
+            title: goal.title,
+            userAddress: goal.userAddress,
+            ...result
+          });
+
+          if (result.success) {
+            successCount++;
+          } else {
+            failureCount++;
+          }
+
+          // Add small delay between settlements to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+        } catch (error) {
+          console.error(`Error settling goal ${goal.id}:`, error);
+          results.push({
+            goalId: goal.id,
+            title: goal.title,
+            userAddress: goal.userAddress,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+          failureCount++;
+        }
+      }
+    }
+
+    console.log(`✅ Batch settlement completed. Success: ${successCount}, Failed: ${failureCount}`);
+
+    res.json({
+      success: true,
+      message: `Batch settlement completed. ${successCount} goals settled, ${failureCount} failed.`,
+      data: {
+        totalProcessed: results.length,
+        successCount,
+        failureCount,
+        results
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in batch settlement:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to run batch settlement',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
 export default router;
